@@ -58,6 +58,12 @@ func Init(c config.Config) (compute, error) {
 			} else {
 				hp = hazardproviders.Init_Meters(c.Hfp)
 			}
+		default: //assume depth
+			if hazardProviderVerticalUnitsIsFeet {
+				hp = hazardproviders.Init(c.Hfp)
+			} else {
+				hp = hazardproviders.Init_Meters(c.Hfp)
+			}
 		}
 	} else {
 		err = errors.New("cannot compute without hazard provider path")
