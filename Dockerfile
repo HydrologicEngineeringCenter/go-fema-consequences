@@ -23,9 +23,9 @@ RUN mkdir -p /app
 COPY ./* /app/
 WORKDIR /app/
 RUN go get -d -v
-
-RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build
+RUN go clean -modcache
+RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build main.go
 
 # USER user
 
-ENTRYPOINT ["/app/go-fema-consequences"]
+ENTRYPOINT ["/app/main"]
