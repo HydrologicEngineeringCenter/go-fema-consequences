@@ -65,12 +65,12 @@ func Test_NON_AWS_Config_To_Compute(t *testing.T) {
 	comp.Compute()
 }
 func Test_NON_AWS_Config_Write(t *testing.T) {
-	c := config.Config{Hfp: "/workspaces/go-fema-consequences/data/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/workspaces/go-fema-consequences/data/nsi.gpkg", Ss: "gpkg", Ot: "gpkg"}
+	c := config.Config{Hfp: "/vsis3/media/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/vsis3/media/nsi.gpkg", Ss: "gpkg", Ot: "gpkg", Ofp: "/results"} //config.Config{Hfp: "/workspaces/go-fema-consequences/data/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/workspaces/go-fema-consequences/data/nsi.gpkg", Ss: "gpkg", Ot: "gpkg"}
 	bytes, err := json.Marshal(c)
 	if err != nil {
 		panic(err)
 	}
-	w, err := os.OpenFile("/workspaces/go-fema-consequences/data/example.eventconfig", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+	w, err := os.OpenFile("/workspaces/go-fema-consequences/data/new.eventconfig", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
 		panic(err)
 	}
