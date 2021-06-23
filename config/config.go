@@ -11,6 +11,7 @@ type Config struct {
 	HpUnits  string `json:"ht"`
 	Sfp      string `json:"sfp"`
 	Ss       string `json:"ss"`
+	Ofp      string `json:"ofp"`
 	Ot       string `json:"ot"`
 }
 

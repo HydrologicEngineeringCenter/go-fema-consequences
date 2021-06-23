@@ -31,6 +31,7 @@ type AWSConfig struct {
 }
 
 func main() {
+	fmt.Println("Launching fema_consequences")
 	var cfg AWSConfig
 	if err := envconfig.Process("fema_consequences", &cfg); err != nil {
 		log.Fatal(err.Error())
@@ -90,8 +91,10 @@ func main() {
 		}
 		for _, item := range resp.Contents {
 			path := *item.Key
-			if len(path) > 3 {
-				if path[len(path)-3:] == ".eventconfig" {
+			fmt.Println(path)
+			if len(path) > 11 {
+				fmt.Println(path)
+				if path[len(path)-11:] == "eventconfig" {
 					list += path + "\n"
 				}
 			}
@@ -113,6 +116,8 @@ func main() {
 		return c.String(http.StatusOK, "Compute Complete")
 
 	})
+	log.Print("starting fema-consequences server")
+	log.Fatal(http.ListenAndServe(":8000", e))
 }
 func writeToS3(vrw consequences.VirtualResultsWriter, s3Path string, cfg AWSConfig, s3c *s3.S3) (string, error) {
 	reader := bytes.NewReader(vrw.Bytes())

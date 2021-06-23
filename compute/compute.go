@@ -2,6 +2,8 @@ package compute
 
 import (
 	"errors"
+	"os"
+	"strings"
 
 	"github.com/HydrologicEngineeringCenter/go-fema-consequences/config"
 	"github.com/HydrologicEngineeringCenter/go-fema-consequences/outputwriter"
@@ -13,9 +15,11 @@ import (
 )
 
 type compute struct {
-	Hp hazardproviders.HazardProvider
-	Sp consequences.StreamProvider
-	Ow consequences.ResultsWriter
+	Hp               hazardproviders.HazardProvider
+	Sp               consequences.StreamProvider
+	Ow               consequences.ResultsWriter
+	TempFileOutput   string
+	OutputFolderPath string
 }
 
 func Init(c config.Config) (compute, error) {
@@ -71,6 +75,10 @@ func Init(c config.Config) (compute, error) {
 	ofp := c.Hfp
 	// pull the .tif off the end?
 	ofp = ofp[:len(ofp)-4] //good enough for government work?
+	// pull vsis3 off the front!
+	//write to temp directory and copy then paste!
+	ofp = strings.Replace(ofp, "/vsis3/", "/app/", 1)
+
 	if ofp != "" {
 		switch c.Ot {
 		case "gpkg":
@@ -95,10 +103,17 @@ func Init(c config.Config) (compute, error) {
 	} else {
 		err = errors.New("we need an input hazard file path use")
 	}
-	return compute{Hp: hp, Sp: sp, Ow: ow}, err
+	return compute{Hp: hp, Sp: sp, Ow: ow, OutputFolderPath: c.Ofp, TempFileOutput: ofp}, err
 }
 func (c compute) Compute() {
 	defer c.Hp.Close()
 	defer c.Ow.Close()
 	consequences_compute.StreamAbstract(c.Hp, c.Sp, c.Ow)
+
+	//copy from /app/media/ to bucket output location?
+	if c.OutputFolderPath != "" {
+		parts := strings.Split(c.TempFileOutput, "/")
+		fname := parts[len(parts)-1]
+		os.Rename(c.TempFileOutput, c.OutputFolderPath+"/"+fname)
+	}
 }
