@@ -25,11 +25,11 @@ func createConfigs_nonAWS() []config.Config {
 }
 func createConfigs_AWS() []config.Config {
 	cs := make([]config.Config, 5)
-	cs[0] = config.Config{Hfp: "/vsis3/media/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/vsis3/media/nsi.gpkg", Ss: "gpkg", Ot: "gpkg", Ofp: "/media"}
-	cs[1] = config.Config{Hfp: "/vsis3/media/clipped_sample.tif", HpSource: "nhc", HpUnits: "feet", Sfp: "/vsis3/media/nsi.gpkg", Ss: "gpkg", Ot: "shp", Ofp: "/media"}
-	cs[2] = config.Config{Hfp: "/vsis3/media/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/vsis3/media/nsi.gpkg", Ss: "gpkg", Ot: "geojson", Ofp: "/media"}
-	cs[3] = config.Config{Hfp: "/vsis3/media/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/vsis3/media/nsi.gpkg", Ss: "gpkg", Ot: "summaryDollars", Ofp: "/media"}
-	cs[4] = config.Config{Hfp: "/vsis3/media/clipped_sample.tif", HpSource: "nhc", HpUnits: "feet", Sfp: "/vsis3/media/nsi.gpkg", Ss: "gpkg", Ot: "summaryDepths", Ofp: "/media"}
+	cs[0] = config.Config{Hfp: "/vsis3/media/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/vsis3/media/nsi.gpkg", Ss: "gpkg", Ot: "gpkg", Ofp: "/results"}
+	cs[1] = config.Config{Hfp: "/vsis3/media/clipped_sample.tif", HpSource: "nhc", HpUnits: "feet", Sfp: "/vsis3/media/nsi.gpkg", Ss: "gpkg", Ot: "shp", Ofp: "/results"}
+	cs[2] = config.Config{Hfp: "/vsis3/media/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/vsis3/media/nsi.gpkg", Ss: "gpkg", Ot: "geojson", Ofp: "/results"}
+	cs[3] = config.Config{Hfp: "/vsis3/media/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/vsis3/media/nsi.gpkg", Ss: "gpkg", Ot: "summaryDollars", Ofp: "/results"}
+	cs[4] = config.Config{Hfp: "/vsis3/media/clipped_sample.tif", HpSource: "nhc", HpUnits: "feet", Sfp: "/vsis3/media/nsi.gpkg", Ss: "gpkg", Ot: "summaryDepths", Ofp: "/results"}
 	return cs
 }
 func Test_NON_AWS_Config_To_Compute(t *testing.T) {

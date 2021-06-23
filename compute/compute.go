@@ -2,7 +2,6 @@ package compute
 
 import (
 	"errors"
-	"os"
 	"strings"
 
 	"github.com/HydrologicEngineeringCenter/go-fema-consequences/config"
@@ -14,7 +13,7 @@ import (
 	"github.com/USACE/go-consequences/structureprovider"
 )
 
-type compute struct {
+type Compute struct {
 	Hp               hazardproviders.HazardProvider
 	Sp               consequences.StreamProvider
 	Ow               consequences.ResultsWriter
@@ -22,7 +21,7 @@ type compute struct {
 	OutputFolderPath string
 }
 
-func Init(c config.Config) (compute, error) {
+func Init(c config.Config) (Compute, error) {
 	var err error
 	var sp consequences.StreamProvider
 	var hp hazardproviders.HazardProvider //not sure what it will be yet, but we can declare it!
@@ -103,17 +102,10 @@ func Init(c config.Config) (compute, error) {
 	} else {
 		err = errors.New("we need an input hazard file path use")
 	}
-	return compute{Hp: hp, Sp: sp, Ow: ow, OutputFolderPath: c.Ofp, TempFileOutput: ofp}, err
+	return Compute{Hp: hp, Sp: sp, Ow: ow, OutputFolderPath: c.Ofp, TempFileOutput: ofp}, err
 }
-func (c compute) Compute() {
+func (c Compute) Compute() {
 	defer c.Hp.Close()
 	defer c.Ow.Close()
 	consequences_compute.StreamAbstract(c.Hp, c.Sp, c.Ow)
-
-	//copy from /app/media/ to bucket output location?
-	if c.OutputFolderPath != "" {
-		parts := strings.Split(c.TempFileOutput, "/")
-		fname := parts[len(parts)-1]
-		os.Rename(c.TempFileOutput, c.OutputFolderPath+"/"+fname)
-	}
 }

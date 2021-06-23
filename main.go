@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 
 	fema_compute "github.com/HydrologicEngineeringCenter/go-fema-consequences/compute"
 	"github.com/HydrologicEngineeringCenter/go-fema-consequences/config"
@@ -12,8 +15,6 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
-
-	"github.com/USACE/go-consequences/consequences"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -112,15 +113,40 @@ func main() {
 		if err != nil {
 			return c.String(http.StatusBadRequest, err.Error())
 		}
-		compute.Compute() //not sure this works with AWS writing... need to rethink how to write geopackage to AWS.
-		return c.String(http.StatusOK, "Compute Complete")
+		compute.Compute() //compute and write to temp directory
+		//move from temp to s3.
+		if compute.OutputFolderPath != "" {
+			parts := strings.Split(compute.TempFileOutput, "/")
+			fname := parts[len(parts)-1]
+			if i.Ot == "shp" {
+				tmp := compute.TempFileOutput
+				//here we have shapefiles.
+				extensions := make([]string, 4)
+				extensions[0] = ".shp"
+				extensions[1] = ".shx"
+				extensions[2] = ".dbf"
+				extensions[3] = ".prj"
+				for _, ext := range extensions {
+					fname = fname[:len(fname)-4]
+					fname = fname + ext
+					tmp = tmp[:len(tmp)-4]
+					tmp = tmp + ext
+					writeToS3(tmp, compute.OutputFolderPath+"/"+fname, cfg, s3c)
+				}
+			} else {
+				writeToS3(compute.TempFileOutput, compute.OutputFolderPath+"/"+fname, cfg, s3c)
+			}
 
+		}
+		return c.String(http.StatusOK, "Compute Complete")
 	})
 	log.Print("starting fema-consequences server")
 	log.Fatal(http.ListenAndServe(":8000", e))
 }
-func writeToS3(vrw consequences.VirtualResultsWriter, s3Path string, cfg AWSConfig, s3c *s3.S3) (string, error) {
-	reader := bytes.NewReader(vrw.Bytes())
+func writeToS3(localpath string, s3Path string, cfg AWSConfig, s3c *s3.S3) (string, error) {
+	//read in the output file.
+	b, err := ioutil.ReadFile(localpath)
+	reader := bytes.NewReader(b)
 	input := &s3.PutObjectInput{
 		Bucket:        &cfg.AWSS3Bucket,
 		Body:          reader,
@@ -132,5 +158,9 @@ func writeToS3(vrw consequences.VirtualResultsWriter, s3Path string, cfg AWSConf
 		return "", err
 	}
 	//fmt.Print(s3output)
-	return *s3output.ETag, nil
+	err = os.Remove(localpath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return *s3output.ETag, err
 }
