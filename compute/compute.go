@@ -2,7 +2,7 @@ package compute
 
 import (
 	"errors"
-	"strings"
+	"path/filepath"
 
 	"github.com/HydrologicEngineeringCenter/go-fema-consequences/config"
 	"github.com/HydrologicEngineeringCenter/go-fema-consequences/outputwriter"
@@ -76,7 +76,7 @@ func Init(c config.Config) (Compute, error) {
 	ofp = ofp[:len(ofp)-4] //good enough for government work?
 	// pull vsis3 off the front!
 	//write to temp directory and copy then paste!
-	ofp = strings.Replace(ofp, "/vsis3/", "/app/", 1)
+	ofp="/app/working/"+filepath.Base(ofp)
 
 	if ofp != "" {
 		switch c.Ot {
