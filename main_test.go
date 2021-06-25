@@ -32,6 +32,15 @@ func createConfigs_AWS() []config.Config {
 	cs[4] = config.Config{Hfp: "/vsis3/media/clipped_sample.tif", HpSource: "nhc", HpUnits: "feet", Sfp: "/vsis3/media/nsi.gpkg", Ss: "gpkg", Ot: "summaryDepths", Ofp: "/results"}
 	return cs
 }
+func createConfigs_CWBI() []config.Config {
+	cs := make([]config.Config, 5)
+	cs[0] = config.Config{Hfp: "/vsis3/usace-storms/go-fema-consequences/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/vsis3/usace-storms/go-fema-consequences/nsi.gpkg", Ss: "gpkg", Ot: "gpkg", Ofp: "/go-fema-consequences"}
+	cs[1] = config.Config{Hfp: "/vsis3/usace-storms/go-fema-consequences/clipped_sample.tif", HpSource: "nhc", HpUnits: "feet", Sfp: "/vsis3/usace-storms/go-fema-consequences/nsi.gpkg", Ss: "gpkg", Ot: "shp", Ofp: "/go-fema-consequences"}
+	cs[2] = config.Config{Hfp: "/vsis3/usace-storms/go-fema-consequences/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/vsis3/usace-storms/go-fema-consequences/nsi.gpkg", Ss: "gpkg", Ot: "geojson", Ofp: "/go-fema-consequences"}
+	cs[3] = config.Config{Hfp: "/vsis3/usace-storms/go-fema-consequences/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/vsis3/usace-storms/go-fema-consequences/nsi.gpkg", Ss: "gpkg", Ot: "summaryDollars", Ofp: "/go-fema-consequences"}
+	cs[4] = config.Config{Hfp: "/vsis3/usace-storms/go-fema-consequences/clipped_sample.tif", HpSource: "nhc", HpUnits: "feet", Sfp: "/vsis3/usace-storms/go-fema-consequences/nsi.gpkg", Ss: "gpkg", Ot: "summaryDepths", Ofp: "/go-fema-consequences"}
+	return cs
+}
 func Test_NON_AWS_Config_To_Compute(t *testing.T) {
 	c := config.Config{Hfp: "/workspaces/go-fema-consequences/data/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/workspaces/go-fema-consequences/data/nsi.gpkg", Ss: "gpkg", Ot: "gpkg"}
 	comp, err := compute.Init(c)
@@ -137,4 +146,39 @@ func Test_Compute(t *testing.T) {
 		fmt.Printf("%s", result)
 	}
 
+}
+func Test_Compute_CWBI(t *testing.T) {
+	configs := createConfigs_CWBI()
+	for _, c := range configs {
+		b, _ := json.Marshal(c)
+		response, err := http.Post(
+			"https://ml-dev.sec.usace.army.mil/nsi-ml/fema-consequences/compute",
+			"application/json; charset=UTF-8",
+			bytes.NewReader(b),
+		)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		defer response.Body.Close()
+		result, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		fmt.Printf("%s", result)
+	}
+
+}
+func Test_IsLive_CWBI(t *testing.T) {
+	response, err := http.Get("https://ml-dev.sec.usace.army.mil/nsi-ml/fema-consequences")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer response.Body.Close()
+	b, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("%s", b)
 }
