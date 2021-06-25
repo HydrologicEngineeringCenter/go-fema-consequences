@@ -29,6 +29,7 @@ type AWSConfig struct {
 	AWSS3DisableSSL     bool   `envconfig:"AWS_S3_DISABLE_SSL"`
 	AWSS3ForcePathStyle bool   `envconfig:"AWS_S3_FORCE_PATH_STYLE"`
 	AWSS3Bucket         string `envconfig:"AWS_S3_BUCKET"`
+	AWSS3Prefix         string `envconfig:"AWS_S3_PREFIX"`
 }
 
 func main() {
@@ -38,6 +39,10 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
+	port:=os.Getenv("PORT")
+	if port==""{
+		port="8000"
+	}
 	// This should probably move elsewhere
 	awsConfig := aws.NewConfig().WithRegion(cfg.AWSS3Region)
 	// Used for "minio" during development
@@ -54,7 +59,9 @@ func main() {
 
 	e := echo.New()
 	e.Use(
-		middleware.CORS(),
+		middleware.Logger(),
+		middleware.Recover(),
+		//middleware.CORS(),
 		middleware.GzipWithConfig(middleware.GzipConfig{Level: 5}),
 	)
 
@@ -74,8 +81,8 @@ func main() {
 	public.GET("fema-consequences", func(c echo.Context) error {
 		return c.String(http.StatusOK, "fema-consequences-api v0.0.1") //should probably have this pick up from an env variable for version info.
 	})
-	public.GET("fema-consequences/events/", func(c echo.Context) error {
-		resp, err := s3c.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: &cfg.AWSS3Bucket})
+	public.GET("fema-consequences/events", func(c echo.Context) error {
+		resp, err := s3c.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: &cfg.AWSS3Bucket, Prefix:&cfg.AWSS3Prefix})
 		var list string
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
@@ -141,7 +148,7 @@ func main() {
 		return c.String(http.StatusOK, "Compute Complete")
 	})
 	log.Print("starting fema-consequences server")
-	log.Fatal(http.ListenAndServe(":8000", e))
+	log.Fatal(http.ListenAndServe(":"+port, e))
 }
 func writeToS3(localpath string, s3Path string, cfg AWSConfig, s3c *s3.S3) (string, error) {
 	//read in the output file.

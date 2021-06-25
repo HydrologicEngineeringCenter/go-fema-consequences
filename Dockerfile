@@ -10,6 +10,6 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone &
 RUN mkdir -p /app
 COPY ./go-fema-consequences /app/
 WORKDIR /app/
-RUN mkdir /app/media
+RUN mkdir /app/working
 
 ENTRYPOINT ["/app/go-fema-consequences"]

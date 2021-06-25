@@ -101,7 +101,7 @@ func Test_Consequences_IsLive(t *testing.T) {
 	fmt.Printf("%s", b)
 }
 func Test_Consequences_Events(t *testing.T) {
-	response, err := http.Get("http://host.docker.internal:8000/fema-consequences/events/")
+	response, err := http.Get("http://host.docker.internal:8000/fema-consequences/events")
 	if err != nil {
 		log.Fatal(err)
 	}
