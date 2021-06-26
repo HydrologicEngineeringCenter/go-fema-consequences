@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -39,9 +40,9 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	port:=os.Getenv("PORT")
-	if port==""{
-		port="8000"
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8000"
 	}
 	// This should probably move elsewhere
 	awsConfig := aws.NewConfig().WithRegion(cfg.AWSS3Region)
@@ -82,7 +83,7 @@ func main() {
 		return c.String(http.StatusOK, "fema-consequences-api v0.0.1") //should probably have this pick up from an env variable for version info.
 	})
 	public.GET("fema-consequences/events", func(c echo.Context) error {
-		resp, err := s3c.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: &cfg.AWSS3Bucket, Prefix:&cfg.AWSS3Prefix})
+		resp, err := s3c.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: &cfg.AWSS3Bucket, Prefix: &cfg.AWSS3Prefix})
 		var list string
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
@@ -109,6 +110,20 @@ func main() {
 		}
 		return c.String(http.StatusOK, list)
 	})
+
+	public.POST("fema-consequences/compute/event", func(c echo.Context) error {
+		var eventKey string
+		if err := c.Bind(&eventKey); err != nil {
+			return c.String(http.StatusBadRequest, "Invalid Input")
+		}
+		c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSONCharsetUTF8)
+		c.Response().WriteHeader(http.StatusOK)
+		computeconfig, err := readFromS3(eventKey, cfg, s3c)
+		if err != nil {
+			return c.String(http.StatusBadRequest, err.Error())
+		}
+		return dostuff(computeconfig, c, cfg, s3c)
+	})
 	public.POST("fema-consequences/compute", func(c echo.Context) error {
 		var i config.Config
 		if err := c.Bind(&i); err != nil {
@@ -116,39 +131,43 @@ func main() {
 		}
 		c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSONCharsetUTF8)
 		c.Response().WriteHeader(http.StatusOK)
-		compute, err := fema_compute.Init(i)
-		if err != nil {
-			return c.String(http.StatusBadRequest, err.Error())
-		}
-		compute.Compute() //compute and write to temp directory
-		//move from temp to s3.
-		if compute.OutputFolderPath != "" {
-			parts := strings.Split(compute.TempFileOutput, "/")
-			fname := parts[len(parts)-1]
-			if i.Ot == "shp" {
-				tmp := compute.TempFileOutput
-				//here we have shapefiles.
-				extensions := make([]string, 4)
-				extensions[0] = ".shp"
-				extensions[1] = ".shx"
-				extensions[2] = ".dbf"
-				extensions[3] = ".prj"
-				for _, ext := range extensions {
-					fname = fname[:len(fname)-4]
-					fname = fname + ext
-					tmp = tmp[:len(tmp)-4]
-					tmp = tmp + ext
-					writeToS3(tmp, compute.OutputFolderPath+"/"+fname, cfg, s3c)
-				}
-			} else {
-				writeToS3(compute.TempFileOutput, compute.OutputFolderPath+"/"+fname, cfg, s3c)
-			}
-
-		}
-		return c.String(http.StatusOK, "Compute Complete")
+		return dostuff(i, c, cfg, s3c)
 	})
+
 	log.Print("starting fema-consequences server")
 	log.Fatal(http.ListenAndServe(":"+port, e))
+}
+func dostuff(i config.Config, c echo.Context, cfg AWSConfig, s3c *s3.S3) error {
+	compute, err := fema_compute.Init(i)
+	if err != nil {
+		return c.String(http.StatusBadRequest, err.Error())
+	}
+	compute.Compute() //compute and write to temp directory
+	//move from temp to s3.
+	if compute.OutputFolderPath != "" {
+		parts := strings.Split(compute.TempFileOutput, "/")
+		fname := parts[len(parts)-1]
+		if i.Ot == "shp" {
+			tmp := compute.TempFileOutput
+			//here we have shapefiles.
+			extensions := make([]string, 4)
+			extensions[0] = ".shp"
+			extensions[1] = ".shx"
+			extensions[2] = ".dbf"
+			extensions[3] = ".prj"
+			for _, ext := range extensions {
+				fname = fname[:len(fname)-4]
+				fname = fname + ext
+				tmp = tmp[:len(tmp)-4]
+				tmp = tmp + ext
+				writeToS3(tmp, compute.OutputFolderPath+"/"+fname, cfg, s3c)
+			}
+		} else {
+			writeToS3(compute.TempFileOutput, compute.OutputFolderPath+"/"+fname, cfg, s3c)
+		}
+
+	}
+	return c.String(http.StatusOK, "Compute Complete")
 }
 func writeToS3(localpath string, s3Path string, cfg AWSConfig, s3c *s3.S3) (string, error) {
 	//read in the output file.
@@ -170,4 +189,20 @@ func writeToS3(localpath string, s3Path string, cfg AWSConfig, s3c *s3.S3) (stri
 		log.Fatal(err)
 	}
 	return *s3output.ETag, err
+}
+func readFromS3(key string, cfg AWSConfig, s3c *s3.S3) (config.Config, error) {
+	n, err := s3c.GetObject(&s3.GetObjectInput{
+		Bucket: &cfg.AWSS3Bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	b, err := ioutil.ReadAll(n.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	c := config.Config{}
+	json.Unmarshal(b, &c)
+	return c, nil
 }
