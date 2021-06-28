@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -149,9 +150,14 @@ func Test_Compute(t *testing.T) {
 }
 func Test_Compute_CWBI(t *testing.T) {
 	configs := createConfigs_CWBI()
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+
 	for _, c := range configs {
 		b, _ := json.Marshal(c)
-		response, err := http.Post(
+		response, err := client.Post(
 			"https://ml-dev.sec.usace.army.mil/nsi-ml/fema-consequences/compute",
 			"application/json; charset=UTF-8",
 			bytes.NewReader(b),
@@ -171,7 +177,12 @@ func Test_Compute_CWBI(t *testing.T) {
 
 }
 func Test_IsLive_CWBI(t *testing.T) {
-	response, err := http.Get("https://ml-dev.sec.usace.army.mil/nsi-ml/fema-consequences")
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+
+	response, err := client.Get("https://ml-dev.sec.usace.army.mil/nsi-ml/fema-consequences")
 	if err != nil {
 		log.Fatal(err)
 	}

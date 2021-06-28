@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	fema_compute "github.com/HydrologicEngineeringCenter/go-fema-consequences/compute"
 	"github.com/HydrologicEngineeringCenter/go-fema-consequences/config"
@@ -31,6 +32,9 @@ type AWSConfig struct {
 	AWSS3ForcePathStyle bool   `envconfig:"AWS_S3_FORCE_PATH_STYLE"`
 	AWSS3Bucket         string `envconfig:"AWS_S3_BUCKET"`
 	AWSS3Prefix         string `envconfig:"AWS_S3_PREFIX"`
+}
+type EventConfigStateObserver struct {
+	eventlist map[string]struct{}
 }
 
 func main() {
@@ -65,7 +69,41 @@ func main() {
 		//middleware.CORS(),
 		middleware.GzipWithConfig(middleware.GzipConfig{Level: 5}),
 	)
+	// polling station//
+	eventlist := make(map[string]struct{})
+	observer := EventConfigStateObserver{eventlist: eventlist}
+	go func(o EventConfigStateObserver, cfg AWSConfig, s3c *s3.S3) {
+		for {
+			time.Sleep(100 * time.Second)
+			i, s := listS3Objects(cfg, s3c)
+			if i != http.StatusOK {
+				panic("Status Was NOT ok!")
+			}
+			events := strings.Split(s, "\n")
+			for _, e := range events {
+				//fmt.Println("Looking for " + e)
+				if e == "" {
+					break
+				}
+				_, ok := observer.eventlist[e]
+				if !ok {
 
+					c, err := readFromS3(e, cfg, s3c)
+					if err != nil {
+						fmt.Println(err)
+						observer.eventlist[e] = struct{}{}
+					}
+					//check if the config file contains a result that already exists?
+					//outputfilepath :=
+					dostuff(c, cfg, s3c)
+					fmt.Printf("computed %s\n", e)
+					observer.eventlist[e] = struct{}{}
+				}
+			}
+		}
+	}(observer, cfg, s3c)
+
+	// end polling station //
 	// Public Routes
 	public := e.Group("")
 
@@ -83,46 +121,8 @@ func main() {
 		return c.String(http.StatusOK, "fema-consequences-api v0.0.1") //should probably have this pick up from an env variable for version info.
 	})
 	public.GET("fema-consequences/events", func(c echo.Context) error {
-		resp, err := s3c.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: &cfg.AWSS3Bucket, Prefix: &cfg.AWSS3Prefix})
-		var list string
-		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok {
-				switch aerr.Code() {
-				case s3.ErrCodeNoSuchBucket:
-					fmt.Println(s3.ErrCodeNoSuchBucket, aerr.Error())
-				default:
-					fmt.Println(aerr.Error())
-				}
-			} else {
-				fmt.Println(err.Error())
-			}
-			return c.String(http.StatusBadRequest, "something bad happened.")
-		}
-		for _, item := range resp.Contents {
-			path := *item.Key
-			fmt.Println(path)
-			if len(path) > 11 {
-				fmt.Println(path)
-				if path[len(path)-11:] == "eventconfig" {
-					list += path + "\n"
-				}
-			}
-		}
-		return c.String(http.StatusOK, list)
-	})
-
-	public.POST("fema-consequences/compute/event", func(c echo.Context) error {
-		var eventKey string
-		if err := c.Bind(&eventKey); err != nil {
-			return c.String(http.StatusBadRequest, "Invalid Input")
-		}
-		c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSONCharsetUTF8)
-		c.Response().WriteHeader(http.StatusOK)
-		computeconfig, err := readFromS3(eventKey, cfg, s3c)
-		if err != nil {
-			return c.String(http.StatusBadRequest, err.Error())
-		}
-		return dostuff(computeconfig, c, cfg, s3c)
+		i, s := listS3Objects(cfg, s3c) //200 is status ok.
+		return c.String(i, s)
 	})
 	public.POST("fema-consequences/compute", func(c echo.Context) error {
 		var i config.Config
@@ -131,16 +131,17 @@ func main() {
 		}
 		c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSONCharsetUTF8)
 		c.Response().WriteHeader(http.StatusOK)
-		return dostuff(i, c, cfg, s3c)
+		i2, s := dostuff(i, cfg, s3c)
+		return c.String(i2, s)
 	})
 
 	log.Print("starting fema-consequences server")
 	log.Fatal(http.ListenAndServe(":"+port, e))
 }
-func dostuff(i config.Config, c echo.Context, cfg AWSConfig, s3c *s3.S3) error {
+func dostuff(i config.Config, cfg AWSConfig, s3c *s3.S3) (int, string) {
 	compute, err := fema_compute.Init(i)
 	if err != nil {
-		return c.String(http.StatusBadRequest, err.Error())
+		return http.StatusBadRequest, err.Error()
 	}
 	compute.Compute() //compute and write to temp directory
 	//move from temp to s3.
@@ -167,10 +168,11 @@ func dostuff(i config.Config, c echo.Context, cfg AWSConfig, s3c *s3.S3) error {
 		}
 
 	}
-	return c.String(http.StatusOK, "Compute Complete")
+	return http.StatusOK, "Compute Complete"
 }
 func writeToS3(localpath string, s3Path string, cfg AWSConfig, s3c *s3.S3) (string, error) {
 	//read in the output file.
+	fmt.Println("Writing " + localpath + " to s3")
 	b, err := ioutil.ReadFile(localpath)
 	reader := bytes.NewReader(b)
 	input := &s3.PutObjectInput{
@@ -191,6 +193,7 @@ func writeToS3(localpath string, s3Path string, cfg AWSConfig, s3c *s3.S3) (stri
 	return *s3output.ETag, err
 }
 func readFromS3(key string, cfg AWSConfig, s3c *s3.S3) (config.Config, error) {
+	//fmt.Println("tryina read " + key)
 	n, err := s3c.GetObject(&s3.GetObjectInput{
 		Bucket: &cfg.AWSS3Bucket,
 		Key:    &key,
@@ -205,4 +208,32 @@ func readFromS3(key string, cfg AWSConfig, s3c *s3.S3) (config.Config, error) {
 	c := config.Config{}
 	json.Unmarshal(b, &c)
 	return c, nil
+}
+func listS3Objects(cfg AWSConfig, s3c *s3.S3) (int, string) {
+	resp, err := s3c.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: &cfg.AWSS3Bucket, Prefix: &cfg.AWSS3Prefix})
+	var list string
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case s3.ErrCodeNoSuchBucket:
+				fmt.Println(s3.ErrCodeNoSuchBucket, aerr.Error())
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			fmt.Println(err.Error())
+		}
+		return http.StatusBadRequest, "something bad happened."
+	}
+	for _, item := range resp.Contents {
+		path := *item.Key
+		//fmt.Println(path)
+		if len(path) > 11 {
+			if path[len(path)-11:] == "eventconfig" {
+				fmt.Println(path)
+				list += path + "\n"
+			}
+		}
+	}
+	return http.StatusOK, list
 }
