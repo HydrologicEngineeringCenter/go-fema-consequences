@@ -23,16 +23,19 @@ type Compute struct {
 
 func Init(c config.Config) (Compute, error) {
 	var err error
+	err = nil
 	var sp consequences.StreamProvider
 	var hp hazardproviders.HazardProvider //not sure what it will be yet, but we can declare it!
 	hazardProviderVerticalUnitsIsFeet := true
 	var ow consequences.ResultsWriter //need a file path to write anything...
+	var se error
+	se = nil
 	if c.Sfp != "" {
 		switch c.Ss {
 		case "gpkg":
-			sp = structureprovider.InitGPK(c.Sfp, "nsi")
+			sp, se = structureprovider.InitGPK(c.Sfp, "nsi")
 		case "shp":
-			sp = structureprovider.InitSHP(c.Sfp)
+			sp, se = structureprovider.InitSHP(c.Sfp)
 		case "nsi":
 			sp = structureprovider.InitNSISP() //default to NSI API structure provider.
 		default:
@@ -49,59 +52,85 @@ func Init(c config.Config) (Compute, error) {
 			hazardProviderVerticalUnitsIsFeet = false
 		}
 	} else {
-		err = errors.New("cannot compute without hazard provider path")
+		se = errors.New("cannot compute without hazard provider path")
 	}
+	var he error
+	he = nil
 	if c.Hfp != "" {
 		switch c.HpSource {
 		case "nhc":
 			hp = nhc.Init(c.Hfp)
 		case "depths":
 			if hazardProviderVerticalUnitsIsFeet {
-				hp = hazardproviders.Init(c.Hfp)
+				hp, he = hazardproviders.Init(c.Hfp)
 			} else {
-				hp = hazardproviders.Init_Meters(c.Hfp)
+				hp, he = hazardproviders.Init_Meters(c.Hfp)
 			}
 		default: //assume depth
 			if hazardProviderVerticalUnitsIsFeet {
-				hp = hazardproviders.Init(c.Hfp)
+				hp, he = hazardproviders.Init(c.Hfp)
 			} else {
-				hp = hazardproviders.Init_Meters(c.Hfp)
+				hp, he = hazardproviders.Init_Meters(c.Hfp)
 			}
 		}
 	} else {
-		err = errors.New("cannot compute without hazard provider path")
+		he = errors.New("cannot compute without hazard provider path")
 	}
 	ofp := c.Hfp
 	// pull the .tif off the end?
 	ofp = ofp[:len(ofp)-4] //good enough for government work?
 	// pull vsis3 off the front!
 	//write to temp directory and copy then paste!
-	ofp="/app/working/"+filepath.Base(ofp)
-
+	ofp = "/app/working/" + filepath.Base(ofp)
+	var oe error
+	oe = nil
 	if ofp != "" {
 		switch c.Ot {
 		case "gpkg":
 			ofp += "_consequences.gpkg"
-			ow = consequences.InitGpkResultsWriter(ofp, "results")
+			ow, oe = consequences.InitGpkResultsWriter(ofp, "results")
 		case "shp":
 			ofp += "_consequences.shp"
-			ow = consequences.InitShpResultsWriter(ofp, "results")
+			ow, oe = consequences.InitShpResultsWriter(ofp, "results")
 		case "geojson":
 			ofp += "_consequences.json"
-			ow = consequences.InitGeoJsonResultsWriterFromFile(ofp)
+			ow, oe = consequences.InitGeoJsonResultsWriterFromFile(ofp)
 		case "summaryDollars":
 			ofp += "_summaryDollars.csv"
-			ow = consequences.InitSummaryResultsWriterFromFile(ofp)
+			ow, oe = consequences.InitSummaryResultsWriterFromFile(ofp)
 		case "summaryDepths":
 			ofp += "_summaryDepths.csv"
 			ow = outputwriter.InitSummaryByDepth(ofp)
 		default:
 			ofp += "_consequences.gpkg"
-			ow = consequences.InitGpkResultsWriter(ofp, "results")
+			ow, oe = consequences.InitGpkResultsWriter(ofp, "results")
 		}
 	} else {
-		err = errors.New("we need an input hazard file path use")
+		oe = errors.New("we need an input hazard file path use so we can define the output path")
 	}
+	//consolidate errors to one error message.
+	if se != nil {
+		if he != nil {
+			if oe != nil {
+				err = errors.New(se.Error() + "\n" + he.Error() + "\n" + oe.Error() + "\n")
+			} else {
+				err = errors.New(se.Error() + "\n" + he.Error() + "\n")
+			}
+		} else {
+			err = errors.New(se.Error() + "\n")
+		}
+	} else if he != nil {
+		if oe != nil {
+			err = errors.New(he.Error() + "\n" + oe.Error() + "\n")
+		} else {
+			err = errors.New(he.Error() + "\n")
+		}
+	} else {
+		if oe != nil {
+			err = errors.New(oe.Error() + "\n")
+		}
+	}
+
 	return Compute{Hp: hp, Sp: sp, Ow: ow, OutputFolderPath: c.Ofp, TempFileOutput: ofp}, err
 }
 func (c Compute) Compute() {

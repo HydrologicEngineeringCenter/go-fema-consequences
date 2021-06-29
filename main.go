@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -95,7 +97,7 @@ func main() {
 					}
 					//check if the config file contains a result that already exists?
 					//outputfilepath :=
-					dostuff(c, cfg, s3c)
+					dostuff(c, e, cfg, s3c)
 					fmt.Printf("computed %s\n", e)
 					observer.eventlist[e] = struct{}{}
 				}
@@ -131,16 +133,32 @@ func main() {
 		}
 		c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSONCharsetUTF8)
 		c.Response().WriteHeader(http.StatusOK)
-		i2, s := dostuff(i, cfg, s3c)
+		i2, s := dostuff(i, "", cfg, s3c)
 		return c.String(i2, s)
 	})
 
 	log.Print("starting fema-consequences server")
 	log.Fatal(http.ListenAndServe(":"+port, e))
 }
-func dostuff(i config.Config, cfg AWSConfig, s3c *s3.S3) (int, string) {
+func dostuff(i config.Config, fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 	compute, err := fema_compute.Init(i)
 	if err != nil {
+		//write the results to fp
+		if fp != "" {
+			//this is a key to an s3 bucket
+			parts := strings.Split(fp, ".")
+			fp = strings.Replace(fp, parts[len(parts)-1], "configHASERRORS", -1)
+			//write to a temp directory.
+			ofp := "/app/working/" + filepath.Base(fp)
+			f, ferr := os.Create(ofp)
+			if ferr != nil {
+				err = errors.New(err.Error() + "\n" + ferr.Error())
+			} else {
+				f.WriteString(err.Error())
+				f.Close()
+				writeToS3(ofp, fp, cfg, s3c)
+			}
+		}
 		return http.StatusBadRequest, err.Error()
 	}
 	compute.Compute() //compute and write to temp directory
