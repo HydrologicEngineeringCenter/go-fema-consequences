@@ -77,6 +77,7 @@ func main() {
 	go func(o EventConfigStateObserver, cfg AWSConfig, s3c *s3.S3) {
 		for {
 			time.Sleep(100 * time.Second)
+			fmt.Println("Polling for .eventConfigs on " + cfg.AWSS3Bucket)
 			i, s := listS3Objects(cfg, s3c)
 			if i != http.StatusOK {
 				panic("Status Was NOT ok!")
