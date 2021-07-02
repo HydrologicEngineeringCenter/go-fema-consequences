@@ -87,7 +87,7 @@ func main() {
 		for {
 			time.Sleep(time.Duration(pd) * time.Second)
 			log.Println("Polling for .eventConfigs on " + cfg.AWSS3Bucket)
-			i, s := listS3Objects(cfg, s3c)
+			i, s := listS3Objects(cfg, s3c, cfg.AWSS3Prefix)
 			if i != http.StatusOK {
 				panic("Status Was NOT ok!")
 			}
@@ -133,7 +133,7 @@ func main() {
 		return c.String(http.StatusOK, "fema-consequences-api v0.0.1") //should probably have this pick up from an env variable for version info.
 	})
 	public.GET("fema-consequences/events", func(c echo.Context) error {
-		i, s := listS3Objects(cfg, s3c) //200 is status ok.
+		i, s := listS3Objects(cfg, s3c, cfg.AWSS3Prefix) //200 is status ok.
 		return c.String(i, s)
 	})
 	public.POST("fema-consequences/compute", func(c echo.Context) error {
@@ -207,25 +207,30 @@ func dostuff(i config.Config, fp string, cfg AWSConfig, s3c *s3.S3) (int, string
 }
 func writeToS3(localpath string, s3Path string, cfg AWSConfig, s3c *s3.S3) (string, error) {
 	//read in the output file.
-	log.Println("Writing " + localpath + " to s3 at " + s3Path)
-	b, err := ioutil.ReadFile(localpath)
-	reader := bytes.NewReader(b)
-	input := &s3.PutObjectInput{
-		Bucket:        &cfg.AWSS3Bucket,
-		Body:          reader,
-		ContentLength: aws.Int64(int64(reader.Len())),
-		Key:           &s3Path,
+	if !exists(cfg, s3c, s3Path) {
+		log.Println("Writing " + localpath + " to s3 at " + s3Path)
+		b, err := ioutil.ReadFile(localpath)
+		reader := bytes.NewReader(b)
+		input := &s3.PutObjectInput{
+			Bucket:        &cfg.AWSS3Bucket,
+			Body:          reader,
+			ContentLength: aws.Int64(int64(reader.Len())),
+			Key:           &s3Path,
+		}
+		s3output, err := s3c.PutObject(input)
+		if err != nil {
+			return "", err
+		}
+		//fmt.Print(s3output)
+		err = os.Remove(localpath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		return *s3output.ETag, err
+	} else {
+		log.Println("File already exists")
+		return "", errors.New("File already exists")
 	}
-	s3output, err := s3c.PutObject(input)
-	if err != nil {
-		return "", err
-	}
-	//fmt.Print(s3output)
-	err = os.Remove(localpath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return *s3output.ETag, err
 }
 func readFromS3(key string, cfg AWSConfig, s3c *s3.S3) (config.Config, error) {
 	//fmt.Println("tryina read " + key)
@@ -244,9 +249,36 @@ func readFromS3(key string, cfg AWSConfig, s3c *s3.S3) (config.Config, error) {
 	json.Unmarshal(b, &c)
 	return c, nil
 }
-func listS3Objects(cfg AWSConfig, s3c *s3.S3) (int, string) {
-	resp, err := s3c.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: &cfg.AWSS3Bucket, Prefix: &cfg.AWSS3Prefix})
+func listS3Objects(cfg AWSConfig, s3c *s3.S3, prefix string) (int, string) {
+	resp, err := s3c.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: &cfg.AWSS3Bucket, Prefix: &prefix})
 	var list string
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case s3.ErrCodeNoSuchBucket:
+				log.Println(s3.ErrCodeNoSuchBucket, aerr.Error())
+			default:
+				log.Println(aerr.Error())
+			}
+		} else {
+			log.Println(err.Error())
+		}
+		return http.StatusBadRequest, "something bad happened."
+	}
+	for _, item := range resp.Contents {
+		path := *item.Key
+		//fmt.Println(path)
+		if len(path) > 11 {
+			if path[len(path)-11:] == "eventconfig" {
+				log.Println(path)
+				list += path + "\n"
+			}
+		}
+	}
+	return http.StatusOK, list
+}
+func exists(cfg AWSConfig, s3c *s3.S3, key string) bool {
+	_, err := s3c.HeadObject(&s3.HeadObjectInput{Bucket: &cfg.AWSS3Bucket, Key: &key})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
@@ -258,17 +290,7 @@ func listS3Objects(cfg AWSConfig, s3c *s3.S3) (int, string) {
 		} else {
 			fmt.Println(err.Error())
 		}
-		return http.StatusBadRequest, "something bad happened."
+		return false
 	}
-	for _, item := range resp.Contents {
-		path := *item.Key
-		//fmt.Println(path)
-		if len(path) > 11 {
-			if path[len(path)-11:] == "eventconfig" {
-				fmt.Println(path)
-				list += path + "\n"
-			}
-		}
-	}
-	return http.StatusOK, list
+	return true
 }
