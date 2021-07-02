@@ -77,7 +77,7 @@ func main() {
 	go func(o EventConfigStateObserver, cfg AWSConfig, s3c *s3.S3) {
 		for {
 			time.Sleep(100 * time.Second)
-			fmt.Println("Polling for .eventConfigs on " + cfg.AWSS3Bucket)
+			log.Println("Polling for .eventConfigs on " + cfg.AWSS3Bucket)
 			i, s := listS3Objects(cfg, s3c)
 			if i != http.StatusOK {
 				panic("Status Was NOT ok!")
@@ -93,13 +93,13 @@ func main() {
 
 					c, err := readFromS3(e, cfg, s3c)
 					if err != nil {
-						fmt.Println(err)
+						log.Println(err)
 						observer.eventlist[e] = struct{}{}
 					}
 					//check if the config file contains a result that already exists?
 					//outputfilepath :=
 					dostuff(c, e, cfg, s3c)
-					fmt.Printf("computed %s\n", e)
+					log.Printf("computed %s\n", e)
 					observer.eventlist[e] = struct{}{}
 				}
 			}
@@ -164,34 +164,32 @@ func dostuff(i config.Config, fp string, cfg AWSConfig, s3c *s3.S3) (int, string
 	}
 	compute.Compute() //compute and write to temp directory
 	//move from temp to s3.
-	if compute.OutputFolderPath != "" {
-		parts := strings.Split(compute.TempFileOutput, "/")
-		fname := parts[len(parts)-1]
-		if i.Ot == "shp" {
-			tmp := compute.TempFileOutput
-			//here we have shapefiles.
-			extensions := make([]string, 4)
-			extensions[0] = ".shp"
-			extensions[1] = ".shx"
-			extensions[2] = ".dbf"
-			extensions[3] = ".prj"
-			for _, ext := range extensions {
-				fname = fname[:len(fname)-4]
-				fname = fname + ext
-				tmp = tmp[:len(tmp)-4]
-				tmp = tmp + ext
-				writeToS3(tmp, compute.OutputFolderPath+"/"+fname, cfg, s3c)
-			}
-		} else {
-			writeToS3(compute.TempFileOutput, compute.OutputFolderPath+"/"+fname, cfg, s3c)
+	parts := strings.Split(compute.TempFileOutput, "/")
+	fname := parts[len(parts)-1]
+	if i.Ot == "shp" {
+		tmp := compute.TempFileOutput
+		//here we have shapefiles.
+		extensions := make([]string, 4)
+		extensions[0] = ".shp"
+		extensions[1] = ".shx"
+		extensions[2] = ".dbf"
+		extensions[3] = ".prj"
+		for _, ext := range extensions {
+			fname = fname[:len(fname)-4]
+			fname = fname + ext
+			tmp = tmp[:len(tmp)-4]
+			tmp = tmp + ext
+			writeToS3(tmp, cfg.AWSS3Prefix+"/"+compute.OutputFolderPath+"/"+fname, cfg, s3c)
 		}
-
+	} else {
+		writeToS3(compute.TempFileOutput, cfg.AWSS3Prefix+"/"+compute.OutputFolderPath+"/"+fname, cfg, s3c)
 	}
+
 	return http.StatusOK, "Compute Complete"
 }
 func writeToS3(localpath string, s3Path string, cfg AWSConfig, s3c *s3.S3) (string, error) {
 	//read in the output file.
-	fmt.Println("Writing " + localpath + " to s3")
+	log.Println("Writing " + localpath + " to s3 at " + s3Path)
 	b, err := ioutil.ReadFile(localpath)
 	reader := bytes.NewReader(b)
 	input := &s3.PutObjectInput{
