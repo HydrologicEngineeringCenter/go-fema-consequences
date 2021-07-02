@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,7 +41,7 @@ type EventConfigStateObserver struct {
 }
 
 func main() {
-	fmt.Println("Launching fema_consequences")
+	log.Println("Launching fema_consequences")
 	var cfg AWSConfig
 	if err := envconfig.Process("fema_consequences", &cfg); err != nil {
 		log.Fatal(err.Error())
@@ -49,6 +50,10 @@ func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8000"
+	}
+	polldur := os.Getenv("POLLDURATION")
+	if polldur == "" {
+		polldur = "100"
 	}
 	// This should probably move elsewhere
 	awsConfig := aws.NewConfig().WithRegion(cfg.AWSS3Region)
@@ -74,9 +79,13 @@ func main() {
 	// polling station//
 	eventlist := make(map[string]struct{})
 	observer := EventConfigStateObserver{eventlist: eventlist}
+	pd, err := strconv.Atoi(polldur)
+	if err != nil {
+		log.Fatal(err)
+	}
 	go func(o EventConfigStateObserver, cfg AWSConfig, s3c *s3.S3) {
 		for {
-			time.Sleep(100 * time.Second)
+			time.Sleep(time.Duration(pd) * time.Second)
 			log.Println("Polling for .eventConfigs on " + cfg.AWSS3Bucket)
 			i, s := listS3Objects(cfg, s3c)
 			if i != http.StatusOK {
@@ -179,10 +188,19 @@ func dostuff(i config.Config, fp string, cfg AWSConfig, s3c *s3.S3) (int, string
 			fname = fname + ext
 			tmp = tmp[:len(tmp)-4]
 			tmp = tmp + ext
-			writeToS3(tmp, cfg.AWSS3Prefix+"/"+compute.OutputFolderPath+"/"+fname, cfg, s3c)
+			if compute.OutputFolderPath == "" {
+				writeToS3(tmp, cfg.AWSS3Prefix+"/"+fname, cfg, s3c)
+			} else {
+				writeToS3(tmp, cfg.AWSS3Prefix+"/"+compute.OutputFolderPath+"/"+fname, cfg, s3c)
+			}
 		}
 	} else {
-		writeToS3(compute.TempFileOutput, cfg.AWSS3Prefix+"/"+compute.OutputFolderPath+"/"+fname, cfg, s3c)
+		if compute.OutputFolderPath == "" {
+			writeToS3(compute.TempFileOutput, cfg.AWSS3Prefix+"/"+fname, cfg, s3c)
+		} else {
+			writeToS3(compute.TempFileOutput, cfg.AWSS3Prefix+"/"+compute.OutputFolderPath+"/"+fname, cfg, s3c)
+		}
+
 	}
 
 	return http.StatusOK, "Compute Complete"
