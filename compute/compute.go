@@ -78,36 +78,42 @@ func Init(c config.Config) (Compute, error) {
 	}
 	ofp := c.Hfp
 	// pull the .tif off the end?
-	ofp = ofp[:len(ofp)-4] //good enough for government work?
-	// pull vsis3 off the front!
-	//write to temp directory and copy then paste!
-	ofp = "/app/working/" + filepath.Base(ofp)
 	var oe error
 	oe = nil
-	if ofp != "" {
-		switch c.Ot {
-		case "gpkg":
-			ofp += "_consequences.gpkg"
-			ow, oe = consequences.InitGpkResultsWriter(ofp, "results")
-		case "shp":
-			ofp += "_consequences.shp"
-			ow, oe = consequences.InitShpResultsWriter(ofp, "results")
-		case "geojson":
-			ofp += "_consequences.json"
-			ow, oe = consequences.InitGeoJsonResultsWriterFromFile(ofp)
-		case "summaryDollars":
-			ofp += "_summaryDollars.csv"
-			ow, oe = consequences.InitSummaryResultsWriterFromFile(ofp)
-		case "summaryDepths":
-			ofp += "_summaryDepths.csv"
-			ow = outputwriter.InitSummaryByDepth(ofp)
-		default:
-			ofp += "_consequences.gpkg"
-			ow, oe = consequences.InitGpkResultsWriter(ofp, "results")
+	if len(ofp) > 4 {
+		ofp = ofp[:len(ofp)-4] //good enough for government work?
+		// pull vsis3 off the front!
+		//write to temp directory and copy then paste!
+		ofp = "/app/working/" + filepath.Base(ofp)
+
+		if ofp != "" {
+			switch c.Ot {
+			case "gpkg":
+				ofp += "_consequences.gpkg"
+				ow, oe = consequences.InitGpkResultsWriter(ofp, "results")
+			case "shp":
+				ofp += "_consequences.shp"
+				ow, oe = consequences.InitShpResultsWriter(ofp, "results")
+			case "geojson":
+				ofp += "_consequences.json"
+				ow, oe = consequences.InitGeoJsonResultsWriterFromFile(ofp)
+			case "summaryDollars":
+				ofp += "_summaryDollars.csv"
+				ow, oe = consequences.InitSummaryResultsWriterFromFile(ofp)
+			case "summaryDepths":
+				ofp += "_summaryDepths.csv"
+				ow = outputwriter.InitSummaryByDepth(ofp)
+			default:
+				ofp += "_consequences.gpkg"
+				ow, oe = consequences.InitGpkResultsWriter(ofp, "results")
+			}
+		} else {
+			oe = errors.New("we need an input hazard file path use so we can define the output path")
 		}
 	} else {
-		oe = errors.New("we need an input hazard file path use so we can define the output path")
+		oe = errors.New("Output file is shorter than 4 characters, which seems odd... " + ofp)
 	}
+
 	//consolidate errors to one error message.
 	if se != nil {
 		if he != nil {
