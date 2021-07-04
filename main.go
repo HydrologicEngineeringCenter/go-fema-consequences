@@ -207,6 +207,12 @@ func computeFromConfigs(i config.Config, fp string, cfg AWSConfig, s3c *s3.S3) (
 }
 func writeToS3(localpath string, s3Path string, cfg AWSConfig, s3c *s3.S3) (string, error) {
 	//read in the output file.
+	if localpath == "" {
+		return "", errors.New("Local path was blank!")
+	}
+	if localpath == "/app/" {
+		return "", errors.New("Local path was /app/!")
+	}
 	if !exists(cfg, s3c, s3Path) {
 		log.Println("Writing " + localpath + " to s3 at " + s3Path)
 		b, err := ioutil.ReadFile(localpath)
@@ -228,7 +234,11 @@ func writeToS3(localpath string, s3Path string, cfg AWSConfig, s3c *s3.S3) (stri
 		}
 		return *s3output.ETag, err
 	} else {
-		log.Println("File already exists")
+		log.Println("File already exists, cleaning up loacal path")
+		err := os.Remove(localpath)
+		if err != nil {
+			log.Fatal(err)
+		}
 		return "", errors.New("File already exists")
 	}
 }
