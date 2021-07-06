@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -65,7 +64,7 @@ func main() {
 	}
 	newSession, err1 := session.NewSession(awsConfig)
 	if err1 != nil {
-		fmt.Println(err1)
+		log.Println(err1)
 	}
 	s3c := s3.New(newSession)
 
@@ -105,8 +104,6 @@ func main() {
 						log.Println(err)
 						observer.eventlist[e] = struct{}{}
 					}
-					//check if the config file contains a result that already exists?
-					//outputfilepath :=
 					computeFromConfigs(c, e, cfg, s3c)
 					log.Printf("computed %s\n", e)
 					observer.eventlist[e] = struct{}{}
@@ -151,30 +148,44 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, e))
 }
 func computeFromConfigs(i config.Config, fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
+	err := i.Validate() //ensure no blank paths
+
+	if err != nil {
+		if fp != "" {
+			//this is a key to a eventconfig file on an s3 bucket
+			writeErrors(i, fp, cfg, s3c, err)
+		}
+		return http.StatusBadRequest, err.Error()
+	}
 	compute, err := fema_compute.Init(i)
 	if err != nil {
 		//write the results to fp
 		if fp != "" {
 			//this is a key to a eventconfig file on an s3 bucket
-			parts := strings.Split(fp, ".")
-			fp = strings.Replace(fp, parts[len(parts)-1], "configHASERRORS", -1)
-			//write to a temp directory.
-			ofp := "/app/working/" + filepath.Base(fp)
-			f, ferr := os.Create(ofp)
-			if ferr != nil {
-				err = errors.New(err.Error() + "\n" + ferr.Error())
-			} else {
-				f.WriteString(err.Error())
-				f.Close()
-				writeToS3(ofp, fp, cfg, s3c)
-			}
+			writeErrors(i, fp, cfg, s3c, err)
 		}
 		return http.StatusBadRequest, err.Error()
 	}
-	compute.Compute() //compute and write to temp directory
-	//move from temp to s3.
+	//prepare for move from temp to s3.
 	parts := strings.Split(compute.TempFileOutput, "/")
 	fname := parts[len(parts)-1]
+	//check if it has been computed before hand.
+	skipCompute := false
+	if compute.OutputFolderPath == "" {
+		if exists(cfg, s3c, cfg.AWSS3Prefix+"/"+fname) {
+			//bad news bears... skipperooo
+			skipCompute = true
+		}
+	} else {
+		if exists(cfg, s3c, cfg.AWSS3Prefix+"/"+compute.OutputFolderPath+"/"+fname) {
+			skipCompute = true
+		}
+	}
+	if skipCompute {
+		writeErrors(i, fp, cfg, s3c, errors.New("Previous Output Detected, Skipping Compute"))
+		return http.StatusConflict, "Previous Output Detected In Directory, Skipping Compute"
+	}
+	compute.Compute() //compute and write to temp directory
 	if i.Ot == "shp" {
 		tmp := compute.TempFileOutput
 		//here we have shapefiles.
@@ -216,6 +227,9 @@ func writeToS3(localpath string, s3Path string, cfg AWSConfig, s3c *s3.S3) (stri
 	if !exists(cfg, s3c, s3Path) {
 		log.Println("Writing " + localpath + " to s3 at " + s3Path)
 		b, err := ioutil.ReadFile(localpath)
+		if err != nil {
+			return "", err
+		}
 		reader := bytes.NewReader(b)
 		input := &s3.PutObjectInput{
 			Bucket:        &cfg.AWSS3Bucket,
@@ -293,14 +307,28 @@ func exists(cfg AWSConfig, s3c *s3.S3, key string) bool {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case s3.ErrCodeNoSuchBucket:
-				fmt.Println(s3.ErrCodeNoSuchBucket, aerr.Error())
+				log.Println(s3.ErrCodeNoSuchBucket, aerr.Error())
 			default:
-				fmt.Println(aerr.Error())
+				log.Println(aerr.Error())
 			}
 		} else {
-			fmt.Println(err.Error())
+			log.Println(err.Error())
 		}
 		return false
 	}
 	return true
+}
+func writeErrors(i config.Config, fp string, cfg AWSConfig, s3c *s3.S3, err error) {
+	parts := strings.Split(fp, ".")
+	fp = strings.Replace(fp, parts[len(parts)-1], "configHASERRORS", -1)
+	//write to a temp directory.
+	ofp := "/app/working/" + filepath.Base(fp)
+	f, ferr := os.Create(ofp)
+	if ferr != nil {
+		err = errors.New(err.Error() + "\n" + ferr.Error())
+	} else {
+		f.WriteString(err.Error())
+		f.Close()
+		writeToS3(ofp, fp, cfg, s3c)
+	}
 }

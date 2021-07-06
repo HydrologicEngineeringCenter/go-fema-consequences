@@ -17,7 +17,7 @@ import (
 
 func createConfigs_nonAWS() []config.Config {
 	cs := make([]config.Config, 5)
-	cs[0] = config.Config{Hfp: "/workspaces/go-fema-consequences/data/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/workspaces/go-fema-consequences/data/nsi.gpkg", Ss: "gpkg", Ot: "gpkg"}
+	cs[0] = config.Config{Hfp: "/workspaces/go-fema-consequences/data/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/workspaces/go-fema-consequences/data/ORNLcentroids_LBattributes_found_type.shp", Ss: "shp", Ot: "gpkg"}
 	cs[1] = config.Config{Hfp: "/workspaces/go-fema-consequences/data/clipped_sample.tif", HpSource: "nhc", HpUnits: "feet", Sfp: "/workspaces/go-fema-consequences/data/nsi.gpkg", Ss: "gpkg", Ot: "shp"}
 	cs[2] = config.Config{Hfp: "/workspaces/go-fema-consequences/data/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/workspaces/go-fema-consequences/data/nsi.gpkg", Ss: "gpkg", Ot: "geojson"}
 	cs[3] = config.Config{Hfp: "/workspaces/go-fema-consequences/data/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/workspaces/go-fema-consequences/data/nsi.gpkg", Ss: "gpkg", Ot: "summaryDollars"}
@@ -43,36 +43,14 @@ func createConfigs_CWBI() []config.Config {
 	return cs
 }
 func Test_NON_AWS_Config_To_Compute(t *testing.T) {
-	c := config.Config{Hfp: "/workspaces/go-fema-consequences/data/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/workspaces/go-fema-consequences/data/nsi.gpkg", Ss: "gpkg", Ot: "gpkg"}
-	comp, err := compute.Init(c)
-	if err != nil {
-		panic(err)
+	configs := createConfigs_nonAWS()
+	for _, c := range configs {
+		comp, err := compute.Init(c)
+		if err != nil {
+			panic(err)
+		}
+		comp.Compute()
 	}
-	comp.Compute()
-	c = config.Config{Hfp: "/workspaces/go-fema-consequences/data/clipped_sample.tif", HpSource: "nhc", HpUnits: "feet", Sfp: "/workspaces/go-fema-consequences/data/nsi.gpkg", Ss: "gpkg", Ot: "shp"}
-	comp, err = compute.Init(c)
-	if err != nil {
-		panic(err)
-	}
-	comp.Compute()
-	c = config.Config{Hfp: "/workspaces/go-fema-consequences/data/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/workspaces/go-fema-consequences/data/nsi.gpkg", Ss: "gpkg", Ot: "geojson"}
-	comp, err = compute.Init(c)
-	if err != nil {
-		panic(err)
-	}
-	comp.Compute()
-	c = config.Config{Hfp: "/workspaces/go-fema-consequences/data/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/workspaces/go-fema-consequences/data/nsi.gpkg", Ss: "gpkg", Ot: "summaryDollars"}
-	comp, err = compute.Init(c)
-	if err != nil {
-		panic(err)
-	}
-	comp.Compute()
-	c = config.Config{Hfp: "/workspaces/go-fema-consequences/data/clipped_sample.tif", HpSource: "nhc", HpUnits: "feet", Sfp: "/workspaces/go-fema-consequences/data/nsi.gpkg", Ss: "gpkg", Ot: "summaryDepths"}
-	comp, err = compute.Init(c)
-	if err != nil {
-		panic(err)
-	}
-	comp.Compute()
 }
 func Test_NON_AWS_Config_Write(t *testing.T) {
 	c := config.Config{Hfp: "/vsis3/media/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/vsis3/media/nsi.gpkg", Ss: "gpkg", Ot: "gpkg", Ofp: "/results"} //config.Config{Hfp: "/workspaces/go-fema-consequences/data/clipped_sample.tif", HpSource: "depths", HpUnits: "feet", Sfp: "/workspaces/go-fema-consequences/data/nsi.gpkg", Ss: "gpkg", Ot: "gpkg"}
@@ -88,7 +66,10 @@ func Test_NON_AWS_Config_Write(t *testing.T) {
 	w.Close()
 }
 func Test_NON_AWS_Config_Read(t *testing.T) {
-	c := config.FromFile("/workspaces/go-fema-consequences/data/example.eventconfig")
+	c, errf := config.FromFile("/workspaces/go-fema-consequences/data/example.eventconfig")
+	if errf != nil {
+		panic(errf)
+	}
 	comp, err := compute.Init(c)
 	if err != nil {
 		panic(err)
