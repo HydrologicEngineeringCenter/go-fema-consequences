@@ -85,6 +85,7 @@ func main() {
 	go func(o EventConfigStateObserver, cfg AWSConfig, s3c *s3.S3) {
 		for {
 			time.Sleep(time.Duration(pd) * time.Second)
+			currentlist := make(map[string]struct{})
 			log.Println("Polling for .eventConfigs on " + cfg.AWSS3Bucket)
 			i, s := listS3Objects(cfg, s3c, cfg.AWSS3Prefix)
 			if i != http.StatusOK {
@@ -92,10 +93,10 @@ func main() {
 			}
 			events := strings.Split(s, "\n")
 			for _, e := range events {
-				//fmt.Println("Looking for " + e)
 				if e == "" {
 					break
 				}
+				currentlist[e] = struct{}{} //store current config files to make sure old ones are discarded after they are deleted
 				_, ok := observer.eventlist[e]
 				if !ok {
 
@@ -109,6 +110,7 @@ func main() {
 					observer.eventlist[e] = struct{}{}
 				}
 			}
+			observer.eventlist = currentlist
 		}
 	}(observer, cfg, s3c)
 
@@ -153,7 +155,7 @@ func computeFromConfigs(i config.Config, fp string, cfg AWSConfig, s3c *s3.S3) (
 	if err != nil {
 		if fp != "" {
 			//this is a key to a eventconfig file on an s3 bucket
-			writeErrors(i, fp, cfg, s3c, err)
+			writeErrors(i, fp, cfg, s3c, err, "configHASERRORS")
 		}
 		return http.StatusBadRequest, err.Error()
 	}
@@ -162,7 +164,7 @@ func computeFromConfigs(i config.Config, fp string, cfg AWSConfig, s3c *s3.S3) (
 		//write the results to fp
 		if fp != "" {
 			//this is a key to a eventconfig file on an s3 bucket
-			writeErrors(i, fp, cfg, s3c, err)
+			writeErrors(i, fp, cfg, s3c, err, "computeHASERRORS")
 		}
 		return http.StatusBadRequest, err.Error()
 	}
@@ -182,7 +184,7 @@ func computeFromConfigs(i config.Config, fp string, cfg AWSConfig, s3c *s3.S3) (
 		}
 	}
 	if skipCompute {
-		writeErrors(i, fp, cfg, s3c, errors.New("Previous Output Detected, Skipping Compute"))
+		writeErrors(i, fp, cfg, s3c, errors.New("Previous Output Detected, Skipping Compute"), "PREVIOUSLYComputed")
 		return http.StatusConflict, "Previous Output Detected In Directory, Skipping Compute"
 	}
 	compute.Compute() //compute and write to temp directory
@@ -318,9 +320,9 @@ func exists(cfg AWSConfig, s3c *s3.S3, key string) bool {
 	}
 	return true
 }
-func writeErrors(i config.Config, fp string, cfg AWSConfig, s3c *s3.S3, err error) {
+func writeErrors(i config.Config, fp string, cfg AWSConfig, s3c *s3.S3, err error, extension string) {
 	parts := strings.Split(fp, ".")
-	fp = strings.Replace(fp, parts[len(parts)-1], "configHASERRORS", -1)
+	fp = strings.Replace(fp, parts[len(parts)-1], extension, -1)
 	//write to a temp directory.
 	ofp := "/app/working/" + filepath.Base(fp)
 	f, ferr := os.Create(ofp)

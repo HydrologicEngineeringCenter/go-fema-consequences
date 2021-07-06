@@ -33,6 +33,17 @@ func (c Config) Validate() error {
 	if c.Hfp == "" {
 		s += "Hazard File Path is Empty"
 		haserrors = true
+	} else {
+		if len(c.Hfp) > 4 {
+			ext := c.Hfp[len(c.Hfp)-4:]
+			if ext != ".tif" {
+				s += "Hazard File Path is not '.tif'."
+				haserrors = true
+			}
+		} else {
+			s += "Hazard File Path is less than 4 characters."
+			haserrors = true
+		}
 	}
 	if c.Ss != "nsi" {
 		if c.Sfp == "" {
