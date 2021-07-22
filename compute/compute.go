@@ -3,10 +3,8 @@ package compute
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 
-	"github.com/HydrologicEngineeringCenter/go-fema-consequences/config"
-	"github.com/HydrologicEngineeringCenter/go-fema-consequences/outputwriter"
-	"github.com/HydrologicEngineeringCenter/go-tc-consequences/nhc"
 	consequences_compute "github.com/USACE/go-consequences/compute"
 	"github.com/USACE/go-consequences/consequences"
 	"github.com/USACE/go-consequences/hazardproviders"
@@ -15,68 +13,32 @@ import (
 
 type Compute struct {
 	Hp               hazardproviders.HazardProvider
-	Sp               consequences.StreamProvider
+	NSI_Sp           consequences.StreamProvider
+	Shp_Sp           consequences.StreamProvider
 	Ow               consequences.ResultsWriter
 	TempFileOutput   string
 	OutputFolderPath string
 }
 
-func Init(c config.Config) (Compute, error) {
+func Init(fp string, outputdir string) (Compute, error) {
 	var err error
 	err = nil
 	var sp consequences.StreamProvider
 	var hp hazardproviders.HazardProvider //not sure what it will be yet, but we can declare it!
-	hazardProviderVerticalUnitsIsFeet := true
-	var ow consequences.ResultsWriter //need a file path to write anything...
+	var ow consequences.ResultsWriter     //need a file path to write anything...
 	var se error
 	se = nil
-	if c.Sfp != "" {
-		switch c.Ss {
-		case "gpkg":
-			sp, se = structureprovider.InitGPK(c.Sfp, "nsi")
-		case "shp":
-			sp, se = structureprovider.InitSHP(c.Sfp)
-		case "nsi":
-			sp = structureprovider.InitNSISP() //default to NSI API structure provider.
-		default:
-			sp = structureprovider.InitNSISP()
-		}
-	} else {
-		sp = structureprovider.InitNSISP()
-	}
-	if c.HpUnits != "" {
-		switch c.HpUnits {
-		case "feet":
-			hazardProviderVerticalUnitsIsFeet = true
-		case "meters":
-			hazardProviderVerticalUnitsIsFeet = false
-		}
-	} else {
-		se = errors.New("cannot compute without hazard provider path")
-	}
+	//grab the tif file key, change the directory to inventory/ORNLcentroids_LBattributes.shp
+	parts := strings.Split(fp, "/")
+
+	sfp := strings.Replace(fp, parts[len(parts)-1], "inventory/ORNLcentroids_LBattributes.shp", -1)
+	//add /vsis3/?
+	sp, se = structureprovider.InitSHP(sfp)
+
 	var he error
-	he = nil
-	if c.Hfp != "" {
-		switch c.HpSource {
-		case "nhc":
-			hp = nhc.Init(c.Hfp)
-		case "depths":
-			if hazardProviderVerticalUnitsIsFeet {
-				hp, he = hazardproviders.Init(c.Hfp)
-			} else {
-				hp, he = hazardproviders.Init_Meters(c.Hfp)
-			}
-		default: //assume depth
-			if hazardProviderVerticalUnitsIsFeet {
-				hp, he = hazardproviders.Init(c.Hfp)
-			} else {
-				hp, he = hazardproviders.Init_Meters(c.Hfp)
-			}
-		}
-	} else {
-		he = errors.New("cannot compute without hazard provider path")
-	}
-	ofp := c.Hfp
+	hp, he = hazardproviders.Init(fp)
+
+	ofp := fp
 	// pull the .tif off the end?
 	var oe error
 	oe = nil
@@ -85,13 +47,9 @@ func Init(c config.Config) (Compute, error) {
 		// pull vsis3 off the front!
 		//write to temp directory and copy then paste!
 		ofp = "/app/working/" + filepath.Base(ofp)
-
-		if ofp != "" {
-			switch c.Ot {
-			case "gpkg":
-				ofp += "_consequences.gpkg"
-				ow, oe = consequences.InitGpkResultsWriter(ofp, "results")
-			case "shp":
+		ofp += "_consequences.gpkg"
+		ow, oe = consequences.InitGpkResultsWriter(ofp, "results")
+		/*
 				ofp += "_consequences.shp"
 				ow, oe = consequences.InitShpResultsWriter(ofp, "results")
 			case "geojson":
@@ -103,13 +61,7 @@ func Init(c config.Config) (Compute, error) {
 			case "summaryDepths":
 				ofp += "_summaryDepths.csv"
 				ow = outputwriter.InitSummaryByDepth(ofp)
-			default:
-				ofp += "_consequences.gpkg"
-				ow, oe = consequences.InitGpkResultsWriter(ofp, "results")
-			}
-		} else {
-			oe = errors.New("we need an input hazard file path use so we can define the output path")
-		}
+		*/
 	} else {
 		oe = errors.New("Output file is shorter than 4 characters, which seems odd... " + ofp)
 	}
@@ -136,11 +88,15 @@ func Init(c config.Config) (Compute, error) {
 			err = errors.New(oe.Error() + "\n")
 		}
 	}
-
-	return Compute{Hp: hp, Sp: sp, Ow: ow, OutputFolderPath: c.Ofp, TempFileOutput: ofp}, err
+	nsisp := structureprovider.InitNSISP()
+	return Compute{Hp: hp, NSI_Sp: nsisp, Shp_Sp: sp, Ow: ow, OutputFolderPath: outputdir, TempFileOutput: ofp}, err
 }
 func (c Compute) Compute() {
-	defer c.Hp.Close()
-	defer c.Ow.Close()
-	consequences_compute.StreamAbstract(c.Hp, c.Sp, c.Ow)
+	compute(c.Hp, c.NSI_Sp, c.Ow)
+	//compute(c.Hp, c.Shp_Sp, c.Ow)
+}
+func compute(hp hazardproviders.HazardProvider, sp consequences.StreamProvider, ow consequences.ResultsWriter) {
+	defer hp.Close()
+	defer ow.Close()
+	consequences_compute.StreamAbstract(hp, sp, ow)
 }
