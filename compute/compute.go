@@ -12,12 +12,13 @@ import (
 )
 
 type Compute struct {
-	Hp               hazardproviders.HazardProvider
-	NSI_Sp           consequences.StreamProvider
-	Shp_Sp           consequences.StreamProvider
-	Ow               consequences.ResultsWriter
-	TempFileOutput   string
-	OutputFolderPath string
+	Hp                   hazardproviders.HazardProvider
+	NSI_Sp               consequences.StreamProvider
+	Shp_Sp               consequences.StreamProvider
+	Ow                   consequences.ResultsWriter
+	TempFileOutput       string
+	NSI_OutputFolderPath string
+	SHP_OutputFolderPath string
 }
 
 func Init(fp string, outputdir string) (Compute, error) {
@@ -89,7 +90,7 @@ func Init(fp string, outputdir string) (Compute, error) {
 		}
 	}
 	nsisp := structureprovider.InitNSISP()
-	return Compute{Hp: hp, NSI_Sp: nsisp, Shp_Sp: sp, Ow: ow, OutputFolderPath: outputdir, TempFileOutput: ofp}, err
+	return Compute{Hp: hp, NSI_Sp: nsisp, Shp_Sp: sp, Ow: ow, NSI_OutputFolderPath: "NSI_" + outputdir, SHP_OutputFolderPath: "SHP_" + outputdir, TempFileOutput: ofp}, err
 }
 func (c Compute) Compute() {
 	compute(c.Hp, c.NSI_Sp, c.Ow)

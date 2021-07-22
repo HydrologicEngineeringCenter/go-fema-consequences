@@ -136,13 +136,13 @@ func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 	fname := parts[len(parts)-1]
 	//check if it has been computed before hand.
 	skipCompute := false
-	if compute.OutputFolderPath == "" {
+	if compute.NSI_OutputFolderPath == "" {
 		if exists(cfg, s3c, cfg.AWSS3Prefix+"/"+fname) {
 			//bad news bears... skipperooo
 			skipCompute = true
 		}
 	} else {
-		if exists(cfg, s3c, cfg.AWSS3Prefix+"/"+compute.OutputFolderPath+"/"+fname) {
+		if exists(cfg, s3c, cfg.AWSS3Prefix+"/"+compute.NSI_OutputFolderPath+"/"+fname) {
 			skipCompute = true
 		}
 	}
@@ -173,10 +173,10 @@ func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 			}
 		} else {
 	*/
-	if compute.OutputFolderPath == "" {
+	if compute.NSI_OutputFolderPath == "" {
 		writeToS3(compute.TempFileOutput, cfg.AWSS3Prefix+"/"+fname, cfg, s3c)
 	} else {
-		writeToS3(compute.TempFileOutput, cfg.AWSS3Prefix+"/"+compute.OutputFolderPath+"/"+fname, cfg, s3c)
+		writeToS3(compute.TempFileOutput, cfg.AWSS3Prefix+"/"+compute.NSI_OutputFolderPath+"/"+fname, cfg, s3c)
 	}
 
 	//}
