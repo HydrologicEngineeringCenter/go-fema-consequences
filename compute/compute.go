@@ -2,9 +2,11 @@ package compute
 
 import (
 	"errors"
+	"log"
 	"path/filepath"
 	"strings"
 
+	"github.com/HydrologicEngineeringCenter/go-fema-consequences/outputwriter"
 	consequences_compute "github.com/USACE/go-consequences/compute"
 	"github.com/USACE/go-consequences/consequences"
 	"github.com/USACE/go-consequences/hazardproviders"
@@ -12,21 +14,18 @@ import (
 )
 
 type Compute struct {
-	Hp                   hazardproviders.HazardProvider
-	NSI_Sp               consequences.StreamProvider
-	Shp_Sp               consequences.StreamProvider
-	Ow                   consequences.ResultsWriter
-	TempFileOutput       string
-	NSI_OutputFolderPath string
-	SHP_OutputFolderPath string
+	Hp             hazardproviders.HazardProvider
+	NSI_Sp         consequences.StreamProvider
+	Shp_Sp         consequences.StreamProvider
+	Ow             consequences.ResultsWriter
+	TempFileOutput string
 }
 
-func Init(fp string, outputdir string) (Compute, error) {
+func Init(fp string) (Compute, error) {
 	var err error
 	err = nil
 	var sp consequences.StreamProvider
 	var hp hazardproviders.HazardProvider //not sure what it will be yet, but we can declare it!
-	var ow consequences.ResultsWriter     //need a file path to write anything...
 	var se error
 	se = nil
 	//grab the tif file key, change the directory to inventory/ORNLcentroids_LBattributes.shp
@@ -45,24 +44,8 @@ func Init(fp string, outputdir string) (Compute, error) {
 	oe = nil
 	if len(ofp) > 4 {
 		ofp = ofp[:len(ofp)-4] //good enough for government work?
-		// pull vsis3 off the front!
 		//write to temp directory and copy then paste!
 		ofp = "/app/working/" + filepath.Base(ofp)
-		ofp += "_consequences.gpkg"
-		ow, oe = consequences.InitGpkResultsWriter(ofp, "results")
-		/*
-				ofp += "_consequences.shp"
-				ow, oe = consequences.InitShpResultsWriter(ofp, "results")
-			case "geojson":
-				ofp += "_consequences.json"
-				ow, oe = consequences.InitGeoJsonResultsWriterFromFile(ofp)
-			case "summaryDollars":
-				ofp += "_summaryDollars.csv"
-				ow, oe = consequences.InitSummaryResultsWriterFromFile(ofp)
-			case "summaryDepths":
-				ofp += "_summaryDepths.csv"
-				ow = outputwriter.InitSummaryByDepth(ofp)
-		*/
 	} else {
 		oe = errors.New("Output file is shorter than 4 characters, which seems odd... " + ofp)
 	}
@@ -90,11 +73,57 @@ func Init(fp string, outputdir string) (Compute, error) {
 		}
 	}
 	nsisp := structureprovider.InitNSISP()
-	return Compute{Hp: hp, NSI_Sp: nsisp, Shp_Sp: sp, Ow: ow, NSI_OutputFolderPath: "NSI_" + outputdir, SHP_OutputFolderPath: "SHP_" + outputdir, TempFileOutput: ofp}, err
+	return Compute{Hp: hp, NSI_Sp: nsisp, Shp_Sp: sp, TempFileOutput: ofp}, err
 }
 func (c Compute) Compute() {
-	compute(c.Hp, c.NSI_Sp, c.Ow)
-	//compute(c.Hp, c.Shp_Sp, c.Ow)
+	ofp := c.TempFileOutput
+	ow, err := consequences.InitGpkResultsWriter(ofp+"_consequences.gpkg", "results")
+	if err != nil {
+		log.Println(err)
+	}
+	ows, err := consequences.InitShpResultsWriter(ofp+"_consequences.shp", "results")
+	if err != nil {
+		log.Println(err)
+	}
+	owgs, err := consequences.InitGeoJsonResultsWriterFromFile(ofp + "_consequences.json")
+	if err != nil {
+		log.Println(err)
+	}
+	owsdollars, err := consequences.InitSummaryResultsWriterFromFile(ofp + "_summaryDollars.csv")
+	if err != nil {
+		log.Println(err)
+	}
+	owsdepths := outputwriter.InitSummaryByDepth(ofp + "_summaryDepths.csv")
+
+	now, err := consequences.InitGpkResultsWriter(ofp+"_consequences_nsi.gpkg", "results")
+	if err != nil {
+		log.Println(err)
+	}
+	nows, err := consequences.InitShpResultsWriter(ofp+"_consequences_nsi.shp", "results")
+	if err != nil {
+		log.Println(err)
+	}
+	nowgs, err := consequences.InitGeoJsonResultsWriterFromFile(ofp + "_consequences_nsi.json")
+	if err != nil {
+		log.Println(err)
+	}
+	nowsdollars, err := consequences.InitSummaryResultsWriterFromFile(ofp + "_summaryDollars_nsi.csv")
+	if err != nil {
+		log.Println(err)
+	}
+	nowsdepths := outputwriter.InitSummaryByDepth(ofp + "_summaryDepths_nsi.csv")
+
+	compute(c.Hp, c.Shp_Sp, ow)
+	compute(c.Hp, c.Shp_Sp, ows)
+	compute(c.Hp, c.Shp_Sp, owgs)
+	compute(c.Hp, c.Shp_Sp, owsdollars)
+	compute(c.Hp, c.Shp_Sp, owsdepths)
+
+	compute(c.Hp, c.NSI_Sp, now)
+	compute(c.Hp, c.NSI_Sp, nows)
+	compute(c.Hp, c.NSI_Sp, nowgs)
+	compute(c.Hp, c.NSI_Sp, nowsdollars)
+	compute(c.Hp, c.NSI_Sp, nowsdepths)
 }
 func compute(hp hazardproviders.HazardProvider, sp consequences.StreamProvider, ow consequences.ResultsWriter) {
 	defer hp.Close()

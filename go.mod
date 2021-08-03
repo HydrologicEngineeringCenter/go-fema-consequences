@@ -3,7 +3,7 @@ module github.com/HydrologicEngineeringCenter/go-fema-consequences
 go 1.15
 
 require (
-	github.com/HydrologicEngineeringCenter/go-tc-consequences v0.0.0-20210702213927-583457b77de2
+	github.com/HydrologicEngineeringCenter/go-tc-consequences v0.0.0-20210702213927-583457b77de2 // indirect
 	github.com/USACE/go-consequences v0.0.0-20210707163739-4bf3dc98670a
 	github.com/aws/aws-sdk-go v1.39.2
 	github.com/kelseyhightower/envconfig v1.4.0

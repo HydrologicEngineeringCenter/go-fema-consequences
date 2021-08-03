@@ -13,7 +13,7 @@ import (
 
 func Test_NON_AWS_Compute(t *testing.T) {
 	fp := "/workspaces/go-fema-consequences/data/clipped_sample.tif"
-	comp, err := compute.Init(fp, "results")
+	comp, err := compute.Init(fp)
 	if err != nil {
 		panic(err)
 	}

@@ -122,7 +122,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, e))
 }
 func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
-	compute, err := fema_compute.Init(fp, "results")
+	compute, err := fema_compute.Init(fp)
 	if err != nil {
 		//write the results to fp
 		if fp != "" {
@@ -132,54 +132,39 @@ func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 		return http.StatusBadRequest, err.Error()
 	}
 	//prepare for move from temp to s3.
-	parts := strings.Split(compute.TempFileOutput, "/")
-	fname := parts[len(parts)-1]
+	outputdestination := filepath.Dir(fp) + "/results"
+	fn := filepath.Base(fp)
+	fn = fn[:len(fn)-4]
 	//check if it has been computed before hand.
 	skipCompute := false
-	if compute.NSI_OutputFolderPath == "" {
-		if exists(cfg, s3c, cfg.AWSS3Prefix+"/"+fname) {
-			//bad news bears... skipperooo
-			skipCompute = true
-		}
-	} else {
-		if exists(cfg, s3c, cfg.AWSS3Prefix+"/"+compute.NSI_OutputFolderPath+"/"+fname) {
-			skipCompute = true
-		}
+	if exists(cfg, s3c, outputdestination+"/"+fn+"_consequences_nsi.gpkg") {
+		//bad news bears... skipperooo
+		skipCompute = true
 	}
+
 	if skipCompute {
 		writeErrors(fp, cfg, s3c, errors.New("Previous Output Detected, Skipping Compute"), "PREVIOUSLYComputed")
 		return http.StatusConflict, "Previous Output Detected In Directory, Skipping Compute"
 	}
 	compute.Compute() //compute and write to temp directory
-	/*
-		if i.Ot == "shp" {
-			tmp := compute.TempFileOutput
-			//here we have shapefiles.
-			extensions := make([]string, 4)
-			extensions[0] = ".shp"
-			extensions[1] = ".shx"
-			extensions[2] = ".dbf"
-			extensions[3] = ".prj"
-			for _, ext := range extensions {
-				fname = fname[:len(fname)-4]
-				fname = fname + ext
-				tmp = tmp[:len(tmp)-4]
-				tmp = tmp + ext
-				if compute.OutputFolderPath == "" {
-					writeToS3(tmp, cfg.AWSS3Prefix+"/"+fname, cfg, s3c)
-				} else {
-					writeToS3(tmp, cfg.AWSS3Prefix+"/"+compute.OutputFolderPath+"/"+fname, cfg, s3c)
-				}
-			}
-		} else {
-	*/
-	if compute.NSI_OutputFolderPath == "" {
-		writeToS3(compute.TempFileOutput, cfg.AWSS3Prefix+"/"+fname, cfg, s3c)
-	} else {
-		writeToS3(compute.TempFileOutput, cfg.AWSS3Prefix+"/"+compute.NSI_OutputFolderPath+"/"+fname, cfg, s3c)
-	}
 
-	//}
+	writeToS3(compute.TempFileOutput+"_consequences_nsi.gpkg", outputdestination+"/"+fn+"_consequences_nsi.gpkg", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences_nsi.shp", outputdestination+"/"+fn+"_consequences_nsi.shp", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences_nsi.dbf", outputdestination+"/"+fn+"_consequences_nsi.dbf", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences_nsi.shx", outputdestination+"/"+fn+"_consequences_nsi.shx", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences_nsi.prj", outputdestination+"/"+fn+"_consequences_nsi.prj", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences_nsi.json", outputdestination+"/"+fn+"_consequences_nsi.json", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_summaryDollars_nsi.csv", outputdestination+"/"+fn+"_summaryDollars.csv", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_summaryDepths_nsi.csv", outputdestination+"/"+fn+"_summaryDepths.csv", cfg, s3c)
+
+	writeToS3(compute.TempFileOutput+"_consequences.gpkg", outputdestination+"/"+fn+"_consequences_nsi.gpkg", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences.shp", outputdestination+"/"+fn+"_consequences_nsi.shp", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences.dbf", outputdestination+"/"+fn+"_consequences_nsi.dbf", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences.shx", outputdestination+"/"+fn+"_consequences_nsi.shx", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences.prj", outputdestination+"/"+fn+"_consequences_nsi.prj", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences.json", outputdestination+"/"+fn+"_consequences_nsi.json", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_summaryDollars.csv", outputdestination+"/"+fn+"_summaryDollars.csv", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_summaryDepths.csv", outputdestination+"/"+fn+"_summaryDepths.csv", cfg, s3c)
 
 	return http.StatusOK, "Compute Complete"
 }
