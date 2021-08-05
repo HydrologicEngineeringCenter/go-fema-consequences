@@ -14,7 +14,7 @@ import (
 )
 
 type Compute struct {
-	Hp             hazardproviders.HazardProvider
+	Hpfp           string
 	NSI_Sp         consequences.StreamProvider
 	Shp_Sp         consequences.StreamProvider
 	Ow             consequences.ResultsWriter
@@ -73,8 +73,11 @@ func Init(fp string) (Compute, error) {
 			err = errors.New(oe.Error() + "\n")
 		}
 	}
+	if he == nil {
+		hp.Close()
+	}
 	nsisp := structureprovider.InitNSISP()
-	return Compute{Hp: hp, NSI_Sp: nsisp, Shp_Sp: sp, TempFileOutput: ofp}, err
+	return Compute{Hpfp: fp, NSI_Sp: nsisp, Shp_Sp: sp, TempFileOutput: ofp}, err
 }
 func (c Compute) Compute() {
 	ofp := c.TempFileOutput
@@ -114,19 +117,23 @@ func (c Compute) Compute() {
 	}
 	nowsdepths := outputwriter.InitSummaryByDepth(ofp + "_summaryDepths_nsi.csv")
 
-	compute(c.Hp, c.Shp_Sp, ow)
-	compute(c.Hp, c.Shp_Sp, ows)
-	compute(c.Hp, c.Shp_Sp, owgs)
-	compute(c.Hp, c.Shp_Sp, owsdollars)
-	compute(c.Hp, c.Shp_Sp, owsdepths)
+	compute(c.Hpfp, c.Shp_Sp, ow)
+	compute(c.Hpfp, c.Shp_Sp, ows)
+	compute(c.Hpfp, c.Shp_Sp, owgs)
+	compute(c.Hpfp, c.Shp_Sp, owsdollars)
+	compute(c.Hpfp, c.Shp_Sp, owsdepths)
 
-	compute(c.Hp, c.NSI_Sp, now)
-	compute(c.Hp, c.NSI_Sp, nows)
-	compute(c.Hp, c.NSI_Sp, nowgs)
-	compute(c.Hp, c.NSI_Sp, nowsdollars)
-	compute(c.Hp, c.NSI_Sp, nowsdepths)
+	compute(c.Hpfp, c.NSI_Sp, now)
+	compute(c.Hpfp, c.NSI_Sp, nows)
+	compute(c.Hpfp, c.NSI_Sp, nowgs)
+	compute(c.Hpfp, c.NSI_Sp, nowsdollars)
+	compute(c.Hpfp, c.NSI_Sp, nowsdepths)
 }
-func compute(hp hazardproviders.HazardProvider, sp consequences.StreamProvider, ow consequences.ResultsWriter) {
+func compute(hpfp string, sp consequences.StreamProvider, ow consequences.ResultsWriter) {
+	hp, err := hazardproviders.Init(hpfp)
+	if err != nil {
+		log.Println(err)
+	}
 	defer hp.Close()
 	defer ow.Close()
 	consequences_compute.StreamAbstract(hp, sp, ow)

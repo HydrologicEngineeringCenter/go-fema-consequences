@@ -134,7 +134,10 @@ func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 		return http.StatusBadRequest, err.Error()
 	}
 	//prepare for move from temp to s3.
-	outputdestination := filepath.Dir(fp) + "/results"
+	outputdestination := "/results"
+	if cfg.AWSS3Prefix != "" {
+		outputdestination = cfg.AWSS3Prefix + "/results"
+	}
 	fn := filepath.Base(fp)
 	fn = fn[:len(fn)-4]
 	//check if it has been computed before hand.
@@ -156,15 +159,15 @@ func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 	writeToS3(compute.TempFileOutput+"_consequences_nsi.shx", outputdestination+"/"+fn+"_consequences_nsi.shx", cfg, s3c)
 	writeToS3(compute.TempFileOutput+"_consequences_nsi.prj", outputdestination+"/"+fn+"_consequences_nsi.prj", cfg, s3c)
 	writeToS3(compute.TempFileOutput+"_consequences_nsi.json", outputdestination+"/"+fn+"_consequences_nsi.json", cfg, s3c)
-	writeToS3(compute.TempFileOutput+"_summaryDollars_nsi.csv", outputdestination+"/"+fn+"_summaryDollars.csv", cfg, s3c)
-	writeToS3(compute.TempFileOutput+"_summaryDepths_nsi.csv", outputdestination+"/"+fn+"_summaryDepths.csv", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_summaryDollars_nsi.csv", outputdestination+"/"+fn+"_summaryDollars_nsi.csv", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_summaryDepths_nsi.csv", outputdestination+"/"+fn+"_summaryDepths_nsi.csv", cfg, s3c)
 
-	writeToS3(compute.TempFileOutput+"_consequences.gpkg", outputdestination+"/"+fn+"_consequences_nsi.gpkg", cfg, s3c)
-	writeToS3(compute.TempFileOutput+"_consequences.shp", outputdestination+"/"+fn+"_consequences_nsi.shp", cfg, s3c)
-	writeToS3(compute.TempFileOutput+"_consequences.dbf", outputdestination+"/"+fn+"_consequences_nsi.dbf", cfg, s3c)
-	writeToS3(compute.TempFileOutput+"_consequences.shx", outputdestination+"/"+fn+"_consequences_nsi.shx", cfg, s3c)
-	writeToS3(compute.TempFileOutput+"_consequences.prj", outputdestination+"/"+fn+"_consequences_nsi.prj", cfg, s3c)
-	writeToS3(compute.TempFileOutput+"_consequences.json", outputdestination+"/"+fn+"_consequences_nsi.json", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences.gpkg", outputdestination+"/"+fn+"_consequences.gpkg", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences.shp", outputdestination+"/"+fn+"_consequences.shp", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences.dbf", outputdestination+"/"+fn+"_consequences.dbf", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences.shx", outputdestination+"/"+fn+"_consequences.shx", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences.prj", outputdestination+"/"+fn+"_consequences.prj", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_consequences.json", outputdestination+"/"+fn+"_consequences.json", cfg, s3c)
 	writeToS3(compute.TempFileOutput+"_summaryDollars.csv", outputdestination+"/"+fn+"_summaryDollars.csv", cfg, s3c)
 	writeToS3(compute.TempFileOutput+"_summaryDepths.csv", outputdestination+"/"+fn+"_summaryDepths.csv", cfg, s3c)
 
