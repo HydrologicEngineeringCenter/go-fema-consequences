@@ -33,6 +33,7 @@ func Init(fp string) (Compute, error) {
 
 	sfp := strings.Replace(fp, parts[len(parts)-1], "inventory/ORNLcentroids_LBattributes.shp", -1)
 	//add /vsis3/?
+	log.Printf("Loading structure inventory %s\n", sfp)
 	sp, se = structureprovider.InitSHP(sfp)
 
 	var he error

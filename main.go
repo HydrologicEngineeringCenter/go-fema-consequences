@@ -82,6 +82,7 @@ func main() {
 	}
 	go func(o EventConfigStateObserver, cfg AWSConfig, s3c *s3.S3) {
 		for {
+			log.Printf("Sleeping for %v seconds\n", pd)
 			time.Sleep(time.Duration(pd) * time.Second)
 			currentlist := make(map[string]struct{})
 			log.Println("Polling for .tif files on " + cfg.AWSS3Bucket)
@@ -97,7 +98,8 @@ func main() {
 				currentlist[e] = struct{}{} //store current config files to make sure old ones are discarded after they are deleted
 				_, ok := observer.eventlist[e]
 				if !ok {
-					computeFromTif(e, cfg, s3c)
+					log.Printf("computing %s\n", "/vsis3/"+cfg.AWSS3Bucket+"/"+e)
+					computeFromTif("/vsis3/"+cfg.AWSS3Bucket+"/"+e, cfg, s3c)
 					log.Printf("computed %s\n", e)
 					observer.eventlist[e] = struct{}{}
 				}
