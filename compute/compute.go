@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log"
 	"path/filepath"
-	"strings"
 
 	"github.com/HydrologicEngineeringCenter/go-fema-consequences/outputwriter"
 	consequences_compute "github.com/USACE/go-consequences/compute"
@@ -15,26 +14,21 @@ import (
 
 type Compute struct {
 	Hpfp           string
-	NSI_Sp         consequences.StreamProvider
-	Shp_Sp         consequences.StreamProvider
+	Shp_FP         string
 	Ow             consequences.ResultsWriter
 	TempFileOutput string
 }
 
-func Init(fp string) (Compute, error) {
+func Init(fp string, sfp string) (Compute, error) {
 	var err error
 	err = nil
-	var sp consequences.StreamProvider
 	var hp hazardproviders.HazardProvider //not sure what it will be yet, but we can declare it!
 	var se error
 	se = nil
 	//grab the tif file key, change the directory to inventory/ORNLcentroids_LBattributes.shp
-	parts := strings.Split(fp, "/")
+	//parts := strings.Split(fp, "/")
 
-	sfp := strings.Replace(fp, parts[len(parts)-1], "inventory/ORNLcentroids_LBattributes.shp", -1)
-	//add /vsis3/?
-	log.Printf("Loading structure inventory %s\n", sfp)
-	sp, se = structureprovider.InitSHP(sfp)
+	//sfp := strings.Replace(fp, parts[len(parts)-1], "inventory/ORNLcentroids_LBattributes.shp", -1)
 
 	var he error
 	hp, he = hazardproviders.Init(fp)
@@ -76,29 +70,12 @@ func Init(fp string) (Compute, error) {
 	if he == nil {
 		hp.Close()
 	}
-	nsisp := structureprovider.InitNSISP()
-	return Compute{Hpfp: fp, NSI_Sp: nsisp, Shp_Sp: sp, TempFileOutput: ofp}, err
-}
-func (c Compute) Compute() {
-	ofp := c.TempFileOutput
-	ow, err := consequences.InitGpkResultsWriter(ofp+"_consequences.gpkg", "results")
-	if err != nil {
-		log.Println(err)
-	}
-	ows, err := consequences.InitShpResultsWriter(ofp+"_consequences.shp", "results")
-	if err != nil {
-		log.Println(err)
-	}
-	owgs, err := consequences.InitGeoJsonResultsWriterFromFile(ofp + "_consequences.json")
-	if err != nil {
-		log.Println(err)
-	}
-	owsdollars, err := consequences.InitSummaryResultsWriterFromFile(ofp + "_summaryDollars.csv")
-	if err != nil {
-		log.Println(err)
-	}
-	owsdepths := outputwriter.InitSummaryByDepth(ofp + "_summaryDepths.csv")
 
+	return Compute{Hpfp: fp, Shp_FP: sfp, TempFileOutput: ofp}, err
+}
+func (c Compute) Compute_NSI() {
+	ofp := c.TempFileOutput
+	nsisp := structureprovider.InitNSISP()
 	now, err := consequences.InitGpkResultsWriter(ofp+"_consequences_nsi.gpkg", "results")
 	if err != nil {
 		log.Println(err)
@@ -117,17 +94,42 @@ func (c Compute) Compute() {
 	}
 	nowsdepths := outputwriter.InitSummaryByDepth(ofp + "_summaryDepths_nsi.csv")
 
-	compute(c.Hpfp, c.Shp_Sp, ow)
-	compute(c.Hpfp, c.Shp_Sp, ows)
-	compute(c.Hpfp, c.Shp_Sp, owgs)
-	compute(c.Hpfp, c.Shp_Sp, owsdollars)
-	compute(c.Hpfp, c.Shp_Sp, owsdepths)
+	compute(c.Hpfp, nsisp, now)
+	compute(c.Hpfp, nsisp, nows)
+	compute(c.Hpfp, nsisp, nowgs)
+	compute(c.Hpfp, nsisp, nowsdollars)
+	compute(c.Hpfp, nsisp, nowsdepths)
+}
+func (c Compute) Compute_SHP() {
+	ofp := c.TempFileOutput
+	sp, err := structureprovider.InitSHP(c.Shp_FP)
+	if err != nil {
+		log.Println(err)
+	}
+	ow, err := consequences.InitGpkResultsWriter(ofp+"_consequences.gpkg", "results")
+	if err != nil {
+		log.Println(err)
+	}
+	ows, err := consequences.InitShpResultsWriter(ofp+"_consequences.shp", "results")
+	if err != nil {
+		log.Println(err)
+	}
+	owgs, err := consequences.InitGeoJsonResultsWriterFromFile(ofp + "_consequences.json")
+	if err != nil {
+		log.Println(err)
+	}
+	owsdollars, err := consequences.InitSummaryResultsWriterFromFile(ofp + "_summaryDollars.csv")
+	if err != nil {
+		log.Println(err)
+	}
+	owsdepths := outputwriter.InitSummaryByDepth(ofp + "_summaryDepths.csv")
 
-	compute(c.Hpfp, c.NSI_Sp, now)
-	compute(c.Hpfp, c.NSI_Sp, nows)
-	compute(c.Hpfp, c.NSI_Sp, nowgs)
-	compute(c.Hpfp, c.NSI_Sp, nowsdollars)
-	compute(c.Hpfp, c.NSI_Sp, nowsdepths)
+	compute(c.Hpfp, sp, ow)
+	compute(c.Hpfp, sp, ows)
+	compute(c.Hpfp, sp, owgs)
+	compute(c.Hpfp, sp, owsdollars)
+	compute(c.Hpfp, sp, owsdepths)
+
 }
 func compute(hpfp string, sp consequences.StreamProvider, ow consequences.ResultsWriter) {
 	hp, err := hazardproviders.Init(hpfp)

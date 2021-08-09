@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -86,7 +87,7 @@ func main() {
 			time.Sleep(time.Duration(pd) * time.Second)
 			currentlist := make(map[string]struct{})
 			log.Println("Polling for .tif files on " + cfg.AWSS3Bucket)
-			i, s := listS3TifObjects(cfg, s3c, cfg.AWSS3Prefix)
+			i, s := listS3TifObjects(cfg, s3c, cfg.AWSS3Prefix, ".tif")
 			if i != http.StatusOK {
 				panic("Status Was NOT ok!")
 			}
@@ -99,7 +100,7 @@ func main() {
 				_, ok := observer.eventlist[e]
 				if !ok {
 					log.Printf("computing %s\n", "/vsis3/"+cfg.AWSS3Bucket+"/"+e)
-					computeFromTif("/vsis3/"+cfg.AWSS3Bucket+"/"+e, cfg, s3c)
+					computeFromTif(e, cfg, s3c)
 					log.Printf("computed %s\n", e)
 					observer.eventlist[e] = struct{}{}
 				}
@@ -117,14 +118,50 @@ func main() {
 		return c.String(http.StatusOK, "fema-consequences-api v0.0.1") //should probably have this pick up from an env variable for version info.
 	})
 	public.GET("fema-consequences/events", func(c echo.Context) error {
-		i, s := listS3TifObjects(cfg, s3c, cfg.AWSS3Prefix) //200 is status ok.
+		i, s := listS3TifObjects(cfg, s3c, cfg.AWSS3Prefix, ".tif") //200 is status ok.
 		return c.String(i, s)
 	})
 	log.Print("starting fema-consequences server")
 	log.Fatal(http.ListenAndServe(":"+port, e))
 }
 func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
-	compute, err := fema_compute.Init(fp)
+	ofp := fp
+	root := filepath.Dir(ofp)
+	if root == "." {
+		root = ""
+	}
+	inventoryPostfix := "inventory"
+	inventoryKey := "/" + root + "/" + inventoryPostfix
+	/*if cfg.AWSS3Bucket != "" {
+		inventoryKey = cfg.AWSS3Bucket + "/" + root + "/" + inventoryPostfix
+	}*/
+	inventoryKey = strings.Replace(inventoryKey, "//", "/", -1)
+	fp = "/vsis3/" + cfg.AWSS3Bucket + "/" + fp
+
+	//make sure structure shapefile exists.
+	structuresExist := false
+	log.Println("Looking for structures in " + inventoryKey)
+	i, s := listS3TifObjects(cfg, s3c, inventoryKey, ".shp")
+	if i != http.StatusOK {
+		log.Println("Status Was NOT ok!, Searching for " + inventoryKey + ".")
+	}
+	structurefiles := strings.Split(s, "\n")
+	sfname := ""
+	log.Println(fmt.Sprintf("found %v structures", len(structurefiles)))
+	for _, sf := range structurefiles {
+		log.Println("evaluating " + sf)
+		if sf == "" {
+			break
+		}
+		sfname = filepath.Base(sf)
+		sfname = sfname[:len(sfname)-4]
+		structuresExist = true
+	}
+
+	//
+	sfp := "/vsis3/" + cfg.AWSS3Bucket + "/" + inventoryKey + "/" + sfname + ".shp"
+	sfp = strings.Replace(sfp, "//", "/", -1)
+	compute, err := fema_compute.Init(fp, sfp)
 	if err != nil {
 		//write the results to fp
 		if fp != "" {
@@ -134,9 +171,9 @@ func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 		return http.StatusBadRequest, err.Error()
 	}
 	//prepare for move from temp to s3.
-	outputdestination := "/results"
+	outputdestination := root + "/results"
 	if cfg.AWSS3Prefix != "" {
-		outputdestination = cfg.AWSS3Prefix + "/results"
+		outputdestination = cfg.AWSS3Prefix + root + "/results"
 	}
 	fn := filepath.Base(fp)
 	fn = fn[:len(fn)-4]
@@ -148,10 +185,24 @@ func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 	}
 
 	if skipCompute {
-		writeErrors(fp, cfg, s3c, errors.New("Previous Output Detected, Skipping Compute"), "PREVIOUSLYComputed")
+		writeErrors(ofp+"/"+fn+".tif", cfg, s3c, errors.New("Previous Output Detected, Skipping Compute"), "PREVIOUSLYComputed")
 		return http.StatusConflict, "Previous Output Detected In Directory, Skipping Compute"
 	}
-	compute.Compute() //compute and write to temp directory
+
+	if structuresExist {
+		compute.Compute_SHP()
+		writeToS3(compute.TempFileOutput+"_consequences.gpkg", outputdestination+"/"+fn+"_consequences.gpkg", cfg, s3c)
+		writeToS3(compute.TempFileOutput+"_consequences.shp", outputdestination+"/"+fn+"_consequences.shp", cfg, s3c)
+		writeToS3(compute.TempFileOutput+"_consequences.dbf", outputdestination+"/"+fn+"_consequences.dbf", cfg, s3c)
+		writeToS3(compute.TempFileOutput+"_consequences.shx", outputdestination+"/"+fn+"_consequences.shx", cfg, s3c)
+		writeToS3(compute.TempFileOutput+"_consequences.prj", outputdestination+"/"+fn+"_consequences.prj", cfg, s3c)
+		writeToS3(compute.TempFileOutput+"_consequences.json", outputdestination+"/"+fn+"_consequences.json", cfg, s3c)
+		writeToS3(compute.TempFileOutput+"_summaryDollars.csv", outputdestination+"/"+fn+"_summaryDollars.csv", cfg, s3c)
+		writeToS3(compute.TempFileOutput+"_summaryDepths.csv", outputdestination+"/"+fn+"_summaryDepths.csv", cfg, s3c)
+	} else {
+		log.Println(fmt.Sprintf("skipping local shapefile compute, none found at %v.", compute.Shp_FP))
+	}
+	compute.Compute_NSI() //compute and write to temp directory
 
 	writeToS3(compute.TempFileOutput+"_consequences_nsi.gpkg", outputdestination+"/"+fn+"_consequences_nsi.gpkg", cfg, s3c)
 	writeToS3(compute.TempFileOutput+"_consequences_nsi.shp", outputdestination+"/"+fn+"_consequences_nsi.shp", cfg, s3c)
@@ -161,15 +212,6 @@ func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 	writeToS3(compute.TempFileOutput+"_consequences_nsi.json", outputdestination+"/"+fn+"_consequences_nsi.json", cfg, s3c)
 	writeToS3(compute.TempFileOutput+"_summaryDollars_nsi.csv", outputdestination+"/"+fn+"_summaryDollars_nsi.csv", cfg, s3c)
 	writeToS3(compute.TempFileOutput+"_summaryDepths_nsi.csv", outputdestination+"/"+fn+"_summaryDepths_nsi.csv", cfg, s3c)
-
-	writeToS3(compute.TempFileOutput+"_consequences.gpkg", outputdestination+"/"+fn+"_consequences.gpkg", cfg, s3c)
-	writeToS3(compute.TempFileOutput+"_consequences.shp", outputdestination+"/"+fn+"_consequences.shp", cfg, s3c)
-	writeToS3(compute.TempFileOutput+"_consequences.dbf", outputdestination+"/"+fn+"_consequences.dbf", cfg, s3c)
-	writeToS3(compute.TempFileOutput+"_consequences.shx", outputdestination+"/"+fn+"_consequences.shx", cfg, s3c)
-	writeToS3(compute.TempFileOutput+"_consequences.prj", outputdestination+"/"+fn+"_consequences.prj", cfg, s3c)
-	writeToS3(compute.TempFileOutput+"_consequences.json", outputdestination+"/"+fn+"_consequences.json", cfg, s3c)
-	writeToS3(compute.TempFileOutput+"_summaryDollars.csv", outputdestination+"/"+fn+"_summaryDollars.csv", cfg, s3c)
-	writeToS3(compute.TempFileOutput+"_summaryDepths.csv", outputdestination+"/"+fn+"_summaryDepths.csv", cfg, s3c)
 
 	return http.StatusOK, "Compute Complete"
 }
@@ -213,7 +255,8 @@ func writeToS3(localpath string, s3Path string, cfg AWSConfig, s3c *s3.S3) (stri
 		return "", errors.New("File already exists")
 	}
 }
-func listS3TifObjects(cfg AWSConfig, s3c *s3.S3, prefix string) (int, string) {
+func listS3TifObjects(cfg AWSConfig, s3c *s3.S3, prefix string, ext string) (int, string) {
+	log.Println("Prefix is " + prefix)
 	resp, err := s3c.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: &cfg.AWSS3Bucket, Prefix: &prefix})
 	var list string
 	if err != nil {
@@ -232,7 +275,7 @@ func listS3TifObjects(cfg AWSConfig, s3c *s3.S3, prefix string) (int, string) {
 	for _, item := range resp.Contents {
 		path := *item.Key
 		if len(path) > 11 {
-			if path[len(path)-4:] == ".tif" {
+			if path[len(path)-4:] == ext {
 				log.Println(path)
 				list += path + "\n"
 			}

@@ -43,6 +43,6 @@ services:
       - AWS_S3_DISABLE_SSL=True
       - AWS_S3_FORCE_PATH_STYLE=True
       - AWS_HTTPS=False
-      - POLLDURATION=200
+      - POLLDURATION=60
     ports:
       - '8000:8000'

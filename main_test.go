@@ -13,11 +13,11 @@ import (
 
 func Test_NON_AWS_Compute(t *testing.T) {
 	fp := "/workspaces/go-fema-consequences/data/clipped_sample.tif"
-	comp, err := compute.Init(fp)
+	comp, err := compute.Init(fp, "")
 	if err != nil {
 		panic(err)
 	}
-	comp.Compute()
+	comp.Compute_NSI()
 }
 
 func Test_Consequences_IsLive(t *testing.T) {
