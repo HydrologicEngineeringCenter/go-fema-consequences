@@ -100,27 +100,32 @@ func (c Compute) Compute_NSI() {
 	compute(c.Hpfp, nsisp, nowsdollars)
 	compute(c.Hpfp, nsisp, nowsdepths)
 }
-func (c Compute) Compute_SHP() {
+func (c Compute) Compute_SHP() error {
 	ofp := c.TempFileOutput
 	sp, err := structureprovider.InitSHP(c.Shp_FP)
 	if err != nil {
 		log.Println(err)
+		return err
 	}
 	ow, err := consequences.InitGpkResultsWriter(ofp+"_consequences.gpkg", "results")
 	if err != nil {
 		log.Println(err)
+		return err
 	}
 	ows, err := consequences.InitShpResultsWriter(ofp+"_consequences.shp", "results")
 	if err != nil {
 		log.Println(err)
+		return err
 	}
 	owgs, err := consequences.InitGeoJsonResultsWriterFromFile(ofp + "_consequences.json")
 	if err != nil {
 		log.Println(err)
+		return err
 	}
 	owsdollars, err := consequences.InitSummaryResultsWriterFromFile(ofp + "_summaryDollars.csv")
 	if err != nil {
 		log.Println(err)
+		return err
 	}
 	owsdepths := outputwriter.InitSummaryByDepth(ofp + "_summaryDepths.csv")
 
@@ -129,7 +134,7 @@ func (c Compute) Compute_SHP() {
 	compute(c.Hpfp, sp, owgs)
 	compute(c.Hpfp, sp, owsdollars)
 	compute(c.Hpfp, sp, owsdepths)
-
+	return nil
 }
 func compute(hpfp string, sp consequences.StreamProvider, ow consequences.ResultsWriter) {
 	hp, err := hazardproviders.Init(hpfp)

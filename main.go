@@ -127,11 +127,13 @@ func main() {
 func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 	ofp := fp
 	root := filepath.Dir(ofp)
+	inventoryPostfix := "inventory"
+	inventoryKey := root + "/" + inventoryPostfix
 	if root == "." {
 		root = ""
+		inventoryKey = inventoryPostfix
 	}
-	inventoryPostfix := "inventory"
-	inventoryKey := "/" + root + "/" + inventoryPostfix
+
 	/*if cfg.AWSS3Bucket != "" {
 		inventoryKey = cfg.AWSS3Bucket + "/" + root + "/" + inventoryPostfix
 	}*/
@@ -141,7 +143,7 @@ func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 	//make sure structure shapefile exists.
 	structuresExist := false
 	log.Println("Looking for structures in " + inventoryKey)
-	i, s := listS3TifObjects(cfg, s3c, inventoryKey, ".shp")
+	i, s := listS3TifObjects(cfg, s3c, cfg.AWSS3Prefix, ".shp")
 	if i != http.StatusOK {
 		log.Println("Status Was NOT ok!, Searching for " + inventoryKey + ".")
 	}
@@ -153,9 +155,16 @@ func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 		if sf == "" {
 			break
 		}
-		sfname = filepath.Base(sf)
-		sfname = sfname[:len(sfname)-4]
-		structuresExist = true
+		if strings.Contains(sf, inventoryKey) {
+			log.Println("found structure inventory " + sf)
+			frontmatter := sf[:len(inventoryKey)]
+			if frontmatter == inventoryKey {
+				sfname = filepath.Base(sf)
+				sfname = sfname[:len(sfname)-4]
+				structuresExist = true
+				break
+			}
+		}
 	}
 
 	//
@@ -172,9 +181,6 @@ func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 	}
 	//prepare for move from temp to s3.
 	outputdestination := root + "/results"
-	if cfg.AWSS3Prefix != "" {
-		outputdestination = cfg.AWSS3Prefix + root + "/results"
-	}
 	fn := filepath.Base(fp)
 	fn = fn[:len(fn)-4]
 	//check if it has been computed before hand.
@@ -190,15 +196,20 @@ func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 	}
 
 	if structuresExist {
-		compute.Compute_SHP()
-		writeToS3(compute.TempFileOutput+"_consequences.gpkg", outputdestination+"/"+fn+"_consequences.gpkg", cfg, s3c)
-		writeToS3(compute.TempFileOutput+"_consequences.shp", outputdestination+"/"+fn+"_consequences.shp", cfg, s3c)
-		writeToS3(compute.TempFileOutput+"_consequences.dbf", outputdestination+"/"+fn+"_consequences.dbf", cfg, s3c)
-		writeToS3(compute.TempFileOutput+"_consequences.shx", outputdestination+"/"+fn+"_consequences.shx", cfg, s3c)
-		writeToS3(compute.TempFileOutput+"_consequences.prj", outputdestination+"/"+fn+"_consequences.prj", cfg, s3c)
-		writeToS3(compute.TempFileOutput+"_consequences.json", outputdestination+"/"+fn+"_consequences.json", cfg, s3c)
-		writeToS3(compute.TempFileOutput+"_summaryDollars.csv", outputdestination+"/"+fn+"_summaryDollars.csv", cfg, s3c)
-		writeToS3(compute.TempFileOutput+"_summaryDepths.csv", outputdestination+"/"+fn+"_summaryDepths.csv", cfg, s3c)
+		serr := compute.Compute_SHP()
+		if serr == nil {
+			writeToS3(compute.TempFileOutput+"_consequences.gpkg", outputdestination+"/"+fn+"_consequences.gpkg", cfg, s3c)
+			writeToS3(compute.TempFileOutput+"_consequences.shp", outputdestination+"/"+fn+"_consequences.shp", cfg, s3c)
+			writeToS3(compute.TempFileOutput+"_consequences.dbf", outputdestination+"/"+fn+"_consequences.dbf", cfg, s3c)
+			writeToS3(compute.TempFileOutput+"_consequences.shx", outputdestination+"/"+fn+"_consequences.shx", cfg, s3c)
+			writeToS3(compute.TempFileOutput+"_consequences.prj", outputdestination+"/"+fn+"_consequences.prj", cfg, s3c)
+			writeToS3(compute.TempFileOutput+"_consequences.json", outputdestination+"/"+fn+"_consequences.json", cfg, s3c)
+			writeToS3(compute.TempFileOutput+"_summaryDollars.csv", outputdestination+"/"+fn+"_summaryDollars.csv", cfg, s3c)
+			writeToS3(compute.TempFileOutput+"_summaryDepths.csv", outputdestination+"/"+fn+"_summaryDepths.csv", cfg, s3c)
+		} else {
+			log.Println(fmt.Sprintf("skipping local shapefile compute, errors occurred with %v.", compute.Shp_FP))
+		}
+
 	} else {
 		log.Println(fmt.Sprintf("skipping local shapefile compute, none found at %v.", compute.Shp_FP))
 	}
@@ -263,12 +274,12 @@ func listS3TifObjects(cfg AWSConfig, s3c *s3.S3, prefix string, ext string) (int
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case s3.ErrCodeNoSuchBucket:
-				log.Println(s3.ErrCodeNoSuchBucket, aerr.Error())
+				log.Println("no such bucket found")
 			default:
-				log.Println(aerr.Error())
+				log.Println("coult not find files with extention " + ext)
 			}
 		} else {
-			log.Println(err.Error())
+			log.Println("coult not find files with extention " + ext)
 		}
 		return http.StatusBadRequest, "something bad happened."
 	}
@@ -289,12 +300,12 @@ func exists(cfg AWSConfig, s3c *s3.S3, key string) bool {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case s3.ErrCodeNoSuchBucket:
-				log.Println(s3.ErrCodeNoSuchBucket, aerr.Error())
+				log.Println("no such bucket " + key + " does not exist")
 			default:
-				log.Println(aerr.Error())
+				log.Println(key + " does not exist")
 			}
 		} else {
-			log.Println(err.Error())
+			log.Println(key + " does not exist")
 		}
 		return false
 	}
