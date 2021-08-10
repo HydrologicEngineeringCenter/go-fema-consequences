@@ -15,4 +15,5 @@
 # vendor/
 go.sum
 main
+go-fema-consequences
 data/
