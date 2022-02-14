@@ -3,9 +3,7 @@ module github.com/HydrologicEngineeringCenter/go-fema-consequences
 go 1.15
 
 require (
-	github.com/HydrologicEngineeringCenter/go-statistics v0.0.0-20210802152938-62762a4040a1 // indirect
-	github.com/HydrologicEngineeringCenter/go-tc-consequences v0.0.0-20210702213927-583457b77de2 // indirect
-	github.com/USACE/go-consequences v0.0.0-20210802172626-4d38e663b003
+	github.com/USACE/go-consequences v0.0.0-20220111233056-8713a58d55ab
 	github.com/aws/aws-sdk-go v1.39.2
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/labstack/echo/v4 v4.3.0

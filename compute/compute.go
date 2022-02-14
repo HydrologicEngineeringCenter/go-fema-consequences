@@ -8,6 +8,7 @@ import (
 	"github.com/HydrologicEngineeringCenter/go-fema-consequences/outputwriter"
 	consequences_compute "github.com/USACE/go-consequences/compute"
 	"github.com/USACE/go-consequences/consequences"
+	"github.com/USACE/go-consequences/resultswriters"
 	"github.com/USACE/go-consequences/hazardproviders"
 	"github.com/USACE/go-consequences/structureprovider"
 )
@@ -76,19 +77,19 @@ func Init(fp string, sfp string) (Compute, error) {
 func (c Compute) Compute_NSI() {
 	ofp := c.TempFileOutput
 	nsisp := structureprovider.InitNSISP()
-	now, err := consequences.InitGpkResultsWriter(ofp+"_consequences_nsi.gpkg", "results")
+	now, err := resultswriters.InitGpkResultsWriter(ofp+"_consequences_nsi.gpkg", "results")
 	if err != nil {
 		log.Println(err)
 	}
-	nows, err := consequences.InitShpResultsWriter(ofp+"_consequences_nsi.shp", "results")
+	nows, err := resultswriters.InitShpResultsWriter(ofp+"_consequences_nsi.shp", "results")
 	if err != nil {
 		log.Println(err)
 	}
-	nowgs, err := consequences.InitGeoJsonResultsWriterFromFile(ofp + "_consequences_nsi.json")
+	nowgs, err := resultswriters.InitGeoJsonResultsWriterFromFile(ofp + "_consequences_nsi.json")
 	if err != nil {
 		log.Println(err)
 	}
-	nowsdollars, err := consequences.InitSummaryResultsWriterFromFile(ofp + "_summaryDollars_nsi.csv")
+	nowsdollars, err := resultswriters.InitSummaryResultsWriterFromFile(ofp + "_summaryDollars_nsi.csv")
 	if err != nil {
 		log.Println(err)
 	}
@@ -107,22 +108,22 @@ func (c Compute) Compute_SHP() error {
 		log.Println(err)
 		return err
 	}
-	ow, err := consequences.InitGpkResultsWriter(ofp+"_consequences.gpkg", "results")
+	ow, err := resultswriters.InitGpkResultsWriter(ofp+"_consequences.gpkg", "results")
 	if err != nil {
 		log.Println(err)
 		return err
 	}
-	ows, err := consequences.InitShpResultsWriter(ofp+"_consequences.shp", "results")
+	ows, err := resultswriters.InitShpResultsWriter(ofp+"_consequences.shp", "results")
 	if err != nil {
 		log.Println(err)
 		return err
 	}
-	owgs, err := consequences.InitGeoJsonResultsWriterFromFile(ofp + "_consequences.json")
+	owgs, err := resultswriters.InitGeoJsonResultsWriterFromFile(ofp + "_consequences.json")
 	if err != nil {
 		log.Println(err)
 		return err
 	}
-	owsdollars, err := consequences.InitSummaryResultsWriterFromFile(ofp + "_summaryDollars.csv")
+	owsdollars, err := resultswriters.InitSummaryResultsWriterFromFile(ofp + "_summaryDollars.csv")
 	if err != nil {
 		log.Println(err)
 		return err
