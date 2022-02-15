@@ -182,8 +182,15 @@ func (srw *disasterOuput) Close() {
 		for ak, av := range v.byAssetType {
 			av.totalInCounty = s.CountByCategory[ak]
 		}
-		laborLossRatio := float64(v.workingPop) / float64(s.WorkingResPop2AM)
-		capitalLossRatio := float64(v.nonResTotDam) / float64(s.NonResidentialValue)
+		laborLossRatio := 0.0
+		if s.WorkingResPop2AM != 0 {
+			laborLossRatio = float64(v.workingPop) / float64(s.WorkingResPop2AM)
+		}
+
+		capitalLossRatio := 0.0
+		if s.NonResidentialValue != 0.0 {
+			capitalLossRatio = v.nonResTotDam / s.NonResidentialValue
+		}
 		//compute ecam.
 		er, err := indirecteconomics.ComputeEcam(v.statefips, v.countyfips, capitalLossRatio, laborLossRatio)
 		if err == nil {
