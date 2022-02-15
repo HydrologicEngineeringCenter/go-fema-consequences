@@ -34,7 +34,8 @@ type countyRecord struct {
 type typeRecord struct {
 	totalInCounty        int
 	damageCategorization map[string]int
-	thresholds           map[string]float64
+	thresholds           []float64
+	thresholdnames       []string
 	totalDamages         float64
 }
 
@@ -71,7 +72,7 @@ func (cr *countyRecord) Update(r consequences.Result) {
 	d, derr := r.Fetch("damage category")
 	if derr == nil {
 		damcat := d.(string)
-		if damcat == "res" {
+		if damcat == "RES" {
 			cr.resDamCount += 1
 			v, _ := r.Fetch("structure damage") //unsafe skipping error.
 			damage := v.(float64)
@@ -121,13 +122,9 @@ func (cr *countyRecord) Update(r consequences.Result) {
 		} else {
 			//create a new one.
 			dc := make(map[string]int)
-			th := make(map[string]float64)
-			th["No Damage (0 ft)"] = 0.0
-			th["Affected (<=2 ft)"] = 2.0
-			th["Minor Damage (2 - 4 ft)"] = 4.0
-			th["Major Damage (4 - 6 ft)"] = 6.0
-			th["Destroyed (6+ ft)"] = 9998.0
-			at := typeRecord{damageCategorization: dc}
+			thresholds := []float64{0.0, 2.0, 4.0, 6.0, 9998.0}
+			headers := []string{"No Damage (0 ft)", "Affected (<=2 ft)", "Minor Damage (2 - 4 ft)", "Major Damage (4 - 6 ft)", "Destroyed (6+ ft)"}
+			at = typeRecord{damageCategorization: dc, thresholds: thresholds, thresholdnames: headers}
 			at.Update(r)
 		}
 		cr.byAssetType[assetType] = at
@@ -139,15 +136,15 @@ func (at *typeRecord) Update(r consequences.Result) {
 	if hok == nil {
 		he := h.(hazards.DepthEvent)
 		depth := he.Depth()
-		for k, v := range at.thresholds {
+		for idx, v := range at.thresholds {
 			if depth <= v {
-				count, cok := at.damageCategorization[k]
+				count, cok := at.damageCategorization[at.thresholdnames[idx]]
 				if cok {
 					count += 1
 				} else {
 					count = 1
 				}
-				at.damageCategorization[k] = count
+				at.damageCategorization[at.thresholdnames[idx]] = count
 				break
 			}
 		}
@@ -181,6 +178,7 @@ func (srw *disasterOuput) Close() {
 		v.totalValue = s.TotalValue
 		for ak, av := range v.byAssetType {
 			av.totalInCounty = s.CountByCategory[ak]
+			v.byAssetType[ak] = av
 		}
 		laborLossRatio := 0.0
 		if s.WorkingResPop2AM != 0 {
@@ -195,15 +193,19 @@ func (srw *disasterOuput) Close() {
 		er, err := indirecteconomics.ComputeEcam(v.statefips, v.countyfips, capitalLossRatio, laborLossRatio)
 		if err == nil {
 			for _, pr := range er.ProductionImpacts {
-				if pr.Sector == "TOTAL" {
+				if pr.Sector == "Total" {
 					v.indirectLosses = pr.Change
+					fmt.Printf("State %v, County %v, Losses %v\n", v.statefips, v.countyfips, pr.Change)
 					break
 				}
 			}
+		} else {
+			fmt.Println(err)
 		}
+		srw.fipsmap[k] = v
 	}
 	//create results.
-	result := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,Residential,Residential,Residential,Residential,Residential,Agriculture,Agriculture,Agriculture,Agriculture,Agriculture,Agriculture,Assembly,Assembly,Assembly,Assembly,Assembly,Assembly,Commercial,Commercial,Commercial,Commercial,Commercial,Commercial,Education,Education,Education,Education,Education,Education,Government,Government,Government,Government,Government,Government,Industrial,Industrial,Industrial,Industrial,Industrial,Industrial\n", "", "", "", "", "", "", "", "", "", "", "")
+	result := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,Residential,Residential,Residential,Residential,Residential,Residential,Agriculture,Agriculture,Agriculture,Agriculture,Agriculture,Agriculture,Assembly,Assembly,Assembly,Assembly,Assembly,Assembly,Commercial,Commercial,Commercial,Commercial,Commercial,Commercial,Education,Education,Education,Education,Education,Education,Government,Government,Government,Government,Government,Government,Industrial,Industrial,Industrial,Industrial,Industrial,Industrial\n", "", "", "", "", "", "", "", "", "", "", "")
 	result += "State,County,Residential Structures Destroyed or Majorly Damaged,Non-Residential Destroyed or Majorly Damaged,Residential Damages ($),Non-Residential Damages ($),Damages to Infrastructure Per Capita,Total Building Value,Total Building Losses,Buisness Interuption Costs ($M),HomeOwnership Rate of Impacted Residential Structures,Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($)\n"
 	for _, v := range srw.fipsmap {
 		result += v.write() + "\n"

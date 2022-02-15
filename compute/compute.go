@@ -8,8 +8,8 @@ import (
 	"github.com/HydrologicEngineeringCenter/go-fema-consequences/outputwriter"
 	consequences_compute "github.com/USACE/go-consequences/compute"
 	"github.com/USACE/go-consequences/consequences"
-	"github.com/USACE/go-consequences/resultswriters"
 	"github.com/USACE/go-consequences/hazardproviders"
+	"github.com/USACE/go-consequences/resultswriters"
 	"github.com/USACE/go-consequences/structureprovider"
 )
 
@@ -95,11 +95,11 @@ func (c Compute) Compute_NSI() {
 	}
 	nowsdepths := outputwriter.InitSummaryByDepth(ofp + "_summaryDepths_nsi.csv")
 
-	compute(c.Hpfp, nsisp, now)
-	compute(c.Hpfp, nsisp, nows)
-	compute(c.Hpfp, nsisp, nowgs)
-	compute(c.Hpfp, nsisp, nowsdollars)
-	compute(c.Hpfp, nsisp, nowsdepths)
+	ComputeResults(c.Hpfp, nsisp, now)
+	ComputeResults(c.Hpfp, nsisp, nows)
+	ComputeResults(c.Hpfp, nsisp, nowgs)
+	ComputeResults(c.Hpfp, nsisp, nowsdollars)
+	ComputeResults(c.Hpfp, nsisp, nowsdepths)
 }
 func (c Compute) Compute_SHP() error {
 	ofp := c.TempFileOutput
@@ -130,14 +130,14 @@ func (c Compute) Compute_SHP() error {
 	}
 	owsdepths := outputwriter.InitSummaryByDepth(ofp + "_summaryDepths.csv")
 
-	compute(c.Hpfp, sp, ow)
-	compute(c.Hpfp, sp, ows)
-	compute(c.Hpfp, sp, owgs)
-	compute(c.Hpfp, sp, owsdollars)
-	compute(c.Hpfp, sp, owsdepths)
+	ComputeResults(c.Hpfp, sp, ow)
+	ComputeResults(c.Hpfp, sp, ows)
+	ComputeResults(c.Hpfp, sp, owgs)
+	ComputeResults(c.Hpfp, sp, owsdollars)
+	ComputeResults(c.Hpfp, sp, owsdepths)
 	return nil
 }
-func compute(hpfp string, sp consequences.StreamProvider, ow consequences.ResultsWriter) {
+func ComputeResults(hpfp string, sp consequences.StreamProvider, ow consequences.ResultsWriter) {
 	hp, err := hazardproviders.Init(hpfp)
 	if err != nil {
 		log.Println(err)
