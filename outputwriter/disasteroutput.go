@@ -1,6 +1,7 @@
 package outputwriter
 
 import (
+	"fmt"
 	"io"
 	"os"
 
@@ -159,6 +160,21 @@ func (at *typeRecord) Update(r consequences.Result) {
 	}
 
 }
+func (at typeRecord) write() string {
+	return fmt.Sprintf(",%v,%v,%v,%v,%v,%v", at.totalInCounty, at.damageCategorization["Destroyed (6+ ft)"], at.damageCategorization["Major Damage (4 - 6 ft)"], at.damageCategorization["Minor Damage (2 - 4 ft)"], at.damageCategorization["Affected (<=2 ft)"], at.totalDamages)
+}
+func (cr countyRecord) write() string {
+	summary := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v", cr.statefips, cr.countyfips, cr.resDamCount, cr.nonresdamcount, cr.resTotDam, cr.nonResTotDam, "", cr.totalValue, cr.totalDamages, cr.indirectLosses, "")
+	summary += cr.byAssetType["Residential"].write()
+	summary += cr.byAssetType["Agriculture"].write()
+	summary += cr.byAssetType["Assembly"].write()
+	summary += cr.byAssetType["Commercial"].write()
+	summary += cr.byAssetType["Education"].write()
+	summary += cr.byAssetType["Government"].write()
+	summary += cr.byAssetType["Industrial"].write()
+	//others arent mapped based on feedback from FEMA.
+	return summary
+}
 func (srw *disasterOuput) Close() {
 	for k, v := range srw.fipsmap {
 		s := nsi.StatsByFips(k, srw.sp)
@@ -179,6 +195,16 @@ func (srw *disasterOuput) Close() {
 			}
 		}
 	}
-	//write out results.
-
+	//create results.
+	result := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,Residential,Residential,Residential,Residential,Residential,Agriculture,Agriculture,Agriculture,Agriculture,Agriculture,Agriculture,Assembly,Assembly,Assembly,Assembly,Assembly,Assembly,Commercial,Commercial,Commercial,Commercial,Commercial,Commercial,Education,Education,Education,Education,Education,Education,Government,Government,Government,Government,Government,Government,Industrial,Industrial,Industrial,Industrial,Industrial,Industrial\n", "", "", "", "", "", "", "", "", "", "", "")
+	result += "State,County,Residential Structures Destroyed or Majorly Damaged,Non-Residential Destroyed or Majorly Damaged,Residential Damages ($),Non-Residential Damages ($),Damages to Infrastructure Per Capita,Total Building Value,Total Building Losses,Buisness Interuption Costs ($M),HomeOwnership Rate of Impacted Residential Structures,Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($)\n"
+	for _, v := range srw.fipsmap {
+		result += v.write() + "\n"
+	}
+	//write to file.
+	srw.w.Write([]byte(result))
+	w2, ok := srw.w.(io.WriteCloser)
+	if ok {
+		w2.Close()
+	}
 }
