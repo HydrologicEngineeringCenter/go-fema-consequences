@@ -4,14 +4,18 @@ import (
 	"io"
 	"os"
 
+	"github.com/HydrologicEngineeringCenter/go-fema-consequences/nsi"
 	"github.com/USACE/go-consequences/consequences"
 	"github.com/USACE/go-consequences/hazards"
+	"github.com/USACE/go-consequences/indirecteconomics"
+	"github.com/USACE/go-consequences/structureprovider"
 )
 
 type disasterOuput struct {
 	filepath string
 	w        io.Writer
 	fipsmap  map[string]countyRecord
+	sp       structureprovider.StructureProvider
 }
 type countyRecord struct {
 	statefips      string
@@ -19,7 +23,11 @@ type countyRecord struct {
 	resDamCount    int
 	nonresdamcount int
 	resTotDam      float64
+	indirectLosses float64 //in millions.
+	workingPop     int32
 	nonResTotDam   float64
+	totalValue     float64
+	totalDamages   float64
 	byAssetType    map[string]typeRecord
 }
 type typeRecord struct {
@@ -29,14 +37,14 @@ type typeRecord struct {
 	totalDamages         float64
 }
 
-func InitDisasterOutput(filepath string) *disasterOuput {
+func InitDisasterOutput(filepath string, sp structureprovider.StructureProvider) *disasterOuput {
 	w, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
 		panic(err)
 	}
 	//make fipsmap
 	fm := make(map[string]countyRecord)
-	return &disasterOuput{filepath: filepath, w: w, fipsmap: fm}
+	return &disasterOuput{filepath: filepath, w: w, fipsmap: fm, sp: sp}
 }
 func (srw *disasterOuput) Write(r consequences.Result) {
 	f, ferr := r.Fetch("cbfips")
@@ -67,17 +75,23 @@ func (cr *countyRecord) Update(r consequences.Result) {
 			v, _ := r.Fetch("structure damage") //unsafe skipping error.
 			damage := v.(float64)
 			cr.resTotDam += damage
+			cr.totalDamages += damage
 			v, _ = r.Fetch("content damage")
 			damage = v.(float64)
 			cr.resTotDam += damage
+			cr.totalDamages += damage
+			pop, _ := r.Fetch("pop2amu65")
+			cr.workingPop += pop.(int32)
 		} else {
 			cr.nonresdamcount += 1
 			v, _ := r.Fetch("structure damage") //unsafe skipping error.
 			damage := v.(float64)
 			cr.nonResTotDam += damage
+			cr.totalDamages += damage
 			v, _ = r.Fetch("content damage")
 			damage = v.(float64)
 			cr.nonResTotDam += damage
+			cr.totalDamages += damage
 		}
 	}
 	o, oerr := r.Fetch("occupancy type")
@@ -96,6 +110,7 @@ func (cr *countyRecord) Update(r consequences.Result) {
 		case "IND1", "IND2", "IND3", "IND4", "IND5", "IND6":
 			assetType = "Industrial"
 		case "COM1", "COM2", "COM3", "COM4", "COM5", "COM7", "COM8", "COM9", "COM10":
+			assetType = "Commercial"
 		default:
 			assetType = "Residential"
 		}
@@ -145,15 +160,25 @@ func (at *typeRecord) Update(r consequences.Result) {
 
 }
 func (srw *disasterOuput) Close() {
-	/*	fmt.Fprintf(srw.w, "Outcome, Count\n")
-		h := srw.totals
-		for i, v := range h {
-			fmt.Fprintf(srw.w, fmt.Sprintf("%v, %v\n", srw.headers[i], v))
+	for k, v := range srw.fipsmap {
+		s := nsi.StatsByFips(k, srw.sp)
+		v.totalValue = s.TotalValue
+		for ak, av := range v.byAssetType {
+			av.totalInCounty = s.CountByCategory[ak]
 		}
-		fmt.Fprintf(srw.w, fmt.Sprintf("Total Building Count, %v\n", srw.grandTotal))
-		w2, ok := srw.w.(io.WriteCloser)
-		if ok {
-			w2.Close()
+		laborLossRatio := float64(v.workingPop) / float64(s.WorkingResPop2AM)
+		capitalLossRatio := float64(v.nonResTotDam) / float64(s.NonResidentialValue)
+		//compute ecam.
+		er, err := indirecteconomics.ComputeEcam(v.statefips, v.countyfips, capitalLossRatio, laborLossRatio)
+		if err == nil {
+			for _, pr := range er.ProductionImpacts {
+				if pr.Sector == "TOTAL" {
+					v.indirectLosses = pr.Change
+					break
+				}
+			}
 		}
-	*/
+	}
+	//write out results.
+
 }
