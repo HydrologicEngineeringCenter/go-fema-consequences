@@ -172,8 +172,22 @@ func (cr countyRecord) write() string {
 	//others arent mapped based on feedback from FEMA.
 	return summary
 }
+
+type stateSummary struct {
+	totalPopulation                  int32
+	totalHomesWithMajorDamage        int32
+	totalHomesDestroyed              int32
+	totalInfrastructureDamge         float64
+	damagesPerCapita                 float64
+	totalReplacementValueOfBuildings float64
+	totalPropertyDamage              float64
+	totalBuisnessInteruptionLosses   float64
+}
+
 func (srw *disasterOuput) Close() {
+	statelist := make(map[string]stateSummary)
 	for k, v := range srw.fipsmap {
+
 		s := nsi.StatsByFips(k, srw.sp)
 		v.totalValue = s.TotalValue
 		for ak, av := range v.byAssetType {
@@ -203,7 +217,27 @@ func (srw *disasterOuput) Close() {
 			fmt.Println(err)
 		}
 		srw.fipsmap[k] = v
+		state, stateok := statelist[v.statefips]
+		if !stateok {
+			state = stateSummary{}
+		}
+		state.totalHomesDestroyed += int32(v.byAssetType["Residential"].damageCategorization["Destroyed (6+ ft)"])
+		state.totalHomesWithMajorDamage += int32(v.byAssetType["Residential"].damageCategorization["Major Damage (4 - 6 ft)"])
+		state.totalBuisnessInteruptionLosses += v.indirectLosses
+		state.totalPropertyDamage += v.totalDamages
+		statelist[v.statefips] = state
+
 	}
+	//loop over states and compute population and value totals
+	for k, v := range statelist {
+		s := nsi.StatsByFips(k, srw.sp)
+		v.totalPopulation = s.TotalResPop2AM //night time population is my best estimate for state population
+		v.totalReplacementValueOfBuildings = s.TotalValue
+		v.damagesPerCapita = v.totalPropertyDamage / float64(v.totalPopulation)
+		statelist[k] = v
+		//write out each state summary?
+	}
+
 	//create results.
 	result := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,Residential,Residential,Residential,Residential,Residential,Residential,Agriculture,Agriculture,Agriculture,Agriculture,Agriculture,Agriculture,Assembly,Assembly,Assembly,Assembly,Assembly,Assembly,Commercial,Commercial,Commercial,Commercial,Commercial,Commercial,Education,Education,Education,Education,Education,Education,Government,Government,Government,Government,Government,Government,Industrial,Industrial,Industrial,Industrial,Industrial,Industrial\n", "", "", "", "", "", "", "", "", "", "", "")
 	result += "State,County,Residential Structures Destroyed or Majorly Damaged,Non-Residential Destroyed or Majorly Damaged,Residential Damages ($),Non-Residential Damages ($),Damages to Infrastructure Per Capita,Total Building Value,Total Building Losses,Buisness Interuption Costs ($M),HomeOwnership Rate of Impacted Residential Structures,Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($),Total Structures,Destroyed,Major Damage,Minor Damages,Affected Damages,Damages ($)\n"
