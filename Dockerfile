@@ -8,7 +8,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone &
     apt -y install gdal-bin gdal-data libgdal-dev
 
 RUN mkdir -p /app
-RUN mkdir /app/working
+RUN mkdir /working
 COPY ./go-fema-consequences /app/
 WORKDIR /app/
 

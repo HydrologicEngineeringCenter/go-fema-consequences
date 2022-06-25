@@ -25,6 +25,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
+const WORKING_DIR = "/working"
+
 // Config holds all runtime configuration provided via environment variables
 type AWSConfig struct {
 	AWSS3Endpoint       string `envconfig:"AWS_S3_ENDPOINT"`
@@ -315,7 +317,7 @@ func writeErrors(fp string, cfg AWSConfig, s3c *s3.S3, err error, extension stri
 	parts := strings.Split(fp, ".")
 	fp = strings.Replace(fp, parts[len(parts)-1], extension, -1)
 	//write to a temp directory.
-	ofp := "/app/working/" + filepath.Base(fp)
+	ofp := WORKING_DIR + "/" + filepath.Base(fp)
 	f, ferr := os.Create(ofp)
 	if ferr != nil {
 		err = errors.New(err.Error() + "\n" + ferr.Error())
