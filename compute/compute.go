@@ -13,6 +13,8 @@ import (
 	"github.com/USACE/go-consequences/structureprovider"
 )
 
+const WORKING_DIR = "/working"
+
 type Compute struct {
 	Hpfp           string
 	Shp_FP         string
@@ -41,7 +43,7 @@ func Init(fp string, sfp string) (Compute, error) {
 	if len(ofp) > 4 {
 		ofp = ofp[:len(ofp)-4] //good enough for government work?
 		//write to temp directory and copy then paste!
-		ofp = "/app/working/" + filepath.Base(ofp)
+		ofp = WORKING_DIR + "/" + filepath.Base(ofp)
 	} else {
 		oe = errors.New("Output file is shorter than 4 characters, which seems odd... " + ofp)
 	}
