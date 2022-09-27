@@ -96,9 +96,9 @@ func (c Compute) Compute_NSI() {
 		log.Println(err)
 	}
 	nowsdepths := outputwriter.InitSummaryByDepth(ofp + "_summaryDepths_nsi.csv")
-	//owdo := outputwriter.InitDisasterOutput(ofp+"_disasterOutput_nsi.csv", nsisp)
+	owdo := outputwriter.InitDisasterOutput(ofp+"_disasterOutput_nsi.csv", nsisp)
 
-	//ComputeResults(c.Hpfp, nsisp, owdo)
+	ComputeResults(c.Hpfp, nsisp, owdo)
 	ComputeResults(c.Hpfp, nsisp, now)
 	ComputeResults(c.Hpfp, nsisp, nows)
 	ComputeResults(c.Hpfp, nsisp, nowgs)
@@ -134,9 +134,9 @@ func (c Compute) Compute_SHP() error {
 	}
 	owsdepths := outputwriter.InitSummaryByDepth(ofp + "_summaryDepths.csv")
 
-	//owdo := outputwriter.InitDisasterOutput(ofp+"_disasterOutput.csv", sp)
+	owdo := outputwriter.InitDisasterOutput(ofp+"_disasterOutput.csv", sp)
 
-	//ComputeResults(c.Hpfp, sp, owdo)
+	ComputeResults(c.Hpfp, sp, owdo)
 	ComputeResults(c.Hpfp, sp, ow)
 	ComputeResults(c.Hpfp, sp, ows)
 	ComputeResults(c.Hpfp, sp, owgs)

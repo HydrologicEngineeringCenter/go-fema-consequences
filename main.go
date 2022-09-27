@@ -208,7 +208,7 @@ func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 			writeToS3(compute.TempFileOutput+"_consequences.json", outputdestination+"/"+fn+"_consequences.json", cfg, s3c)
 			writeToS3(compute.TempFileOutput+"_summaryDollars.csv", outputdestination+"/"+fn+"_summaryDollars.csv", cfg, s3c)
 			writeToS3(compute.TempFileOutput+"_summaryDepths.csv", outputdestination+"/"+fn+"_summaryDepths.csv", cfg, s3c)
-			//writeToS3(compute.TempFileOutput+"_disasterOutput.csv", outputdestination+"/"+fn+"_disasterOutput.csv", cfg, s3c)
+			writeToS3(compute.TempFileOutput+"_disasterOutput.csv", outputdestination+"/"+fn+"_disasterOutput.csv", cfg, s3c)
 		} else {
 			log.Println(fmt.Sprintf("skipping local shapefile compute, errors occurred with %v.", compute.Shp_FP))
 		}
@@ -226,7 +226,7 @@ func computeFromTif(fp string, cfg AWSConfig, s3c *s3.S3) (int, string) {
 	writeToS3(compute.TempFileOutput+"_consequences_nsi.json", outputdestination+"/"+fn+"_consequences_nsi.json", cfg, s3c)
 	writeToS3(compute.TempFileOutput+"_summaryDollars_nsi.csv", outputdestination+"/"+fn+"_summaryDollars_nsi.csv", cfg, s3c)
 	writeToS3(compute.TempFileOutput+"_summaryDepths_nsi.csv", outputdestination+"/"+fn+"_summaryDepths_nsi.csv", cfg, s3c)
-	//writeToS3(compute.TempFileOutput+"_disasterOutput_nsi.csv", outputdestination+"/"+fn+"_disasterOutput_nsi.csv", cfg, s3c)
+	writeToS3(compute.TempFileOutput+"_disasterOutput_nsi.csv", outputdestination+"/"+fn+"_disasterOutput_nsi.csv", cfg, s3c)
 	return http.StatusOK, "Compute Complete"
 }
 func writeToS3(localpath string, s3Path string, cfg AWSConfig, s3c *s3.S3) (string, error) {
